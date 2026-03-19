@@ -4,6 +4,7 @@ import type { CopilotDevOptions } from '../types'
 import fs from 'fs'
 import path from 'path'
 import { analyzeConsoleIssues } from './llm'
+import { desensitizePayload } from '../utils/desensitize'
 
 // Error Analysis Cache
 interface CacheEntry {
@@ -24,24 +25,13 @@ export function setupBrowserMonitor(
   cacheExpirySeconds = cacheExpirySeconds * 1000 // ms
 
   server.ws.on('copilot:browser-error', async data => {
-    const { type, payload, msg, stack } = data
+    let { type, payload, msg, stack } = data
 
-    // Hash to prevent same error being reported multiple times
-    const errorStringContext = `${type}:${payload}:${msg}:${stack}`
-    const hash = createHash('md5').update(errorStringContext).digest('hex')
+    // 内置降噪和脱敏
+    msg = typeof msg === 'string' ? desensitizePayload(msg) : msg
+    payload = desensitizePayload(payload)
 
-    const now = Date.now()
-    const cached = errorCache.get(hash)
-
-    if (cached && now - cached.timestamp < cacheExpirySeconds) {
-      console.log(
-        `\n\x1b[33m[Copilot Dev Assistant Cache] 重复的浏览器报错 (${type}), 提取上次的建议结果:\x1b[0m`
-      )
-      console.log(cached.result)
-      return
-    }
-
-    // Try to resolve file context
+    // 尝试解析并读取代码上下文片段
     let codeContext = ''
     const fileMatch =
       stack.match(/at\s+.*?\((.*?):(\d+):(\d+)\)/) || stack.match(/at\s+(.*?):(\d+):(\d+)/)
@@ -65,10 +55,39 @@ export function setupBrowserMonitor(
       }
     }
 
+    // 执行用户可能配置的自定义 beforeAnalyze 钩子
+    if (browserMonitorOpts.beforeAnalyze) {
+      const handled = browserMonitorOpts.beforeAnalyze({ type, msg, payload, stack, codeContext })
+      // 返回 false 或 null 则表示拦截，不发送大模型
+      if (!handled) {
+        return
+      }
+      type = handled.type || type
+      msg = handled.msg || msg
+      payload = handled.payload || payload
+      stack = handled.stack || stack
+      codeContext = handled.codeContext || codeContext
+    }
+
+    // Hash to prevent same error being reported multiple times
+    const errorStringContext = `${type}:${JSON.stringify(payload)}:${msg}:${stack}`
+    const hash = createHash('md5').update(errorStringContext).digest('hex')
+
+    const now = Date.now()
+    const cached = errorCache.get(hash)
+
+    if (cached && now - cached.timestamp < cacheExpirySeconds) {
+      console.log(
+        `\n\x1b[33m[Copilot Dev Assistant Cache] 重复的浏览器报错 (${type}), 提取上次的建议结果:\x1b[0m`
+      )
+      console.log(cached.result)
+      return
+    }
+
     const issuesContext = [
       `【Browser Error Type】: ${type}`,
       `【Message】: ${msg}`,
-      `【Payload】: ${payload}`,
+      `【Payload】: ${JSON.stringify(payload)}`,
       `【Stack Trace】: \n${stack}`,
     ]
     if (codeContext) {

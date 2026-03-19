@@ -80,6 +80,19 @@ export interface BrowserMonitorOptions {
   }
   /** 同类错误防抖缓存时间（秒），默认 120 秒，避免反复请求造成的 token 浪费。期间只从内存拿缓存不再调用 AI */
   cacheExpirySeconds?: number
+  /**
+   * 可以在发送给大模型分析前，对收集到的报错信息(如 payload, msg)进行自定义处理和降噪。
+   * 如果返回 false 或是空对象，则中止该报错发送。
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  beforeAnalyze?: (errorData: {
+    type: string
+    msg: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    payload: any
+    stack: string
+    codeContext?: string
+  }) => typeof errorData | false | null | void
 }
 
 export interface CopilotDevOptions extends LighthouseOptions {
