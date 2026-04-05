@@ -28,6 +28,7 @@ export async function analyzeConsoleIssues(
 
 要求返回的 JSON 结构必须为：
 {
+  "fileLocation": "指明报错发生的文件相对路径和行列号，例如 src/App.vue:10:5（如果无法确定则填 null）",
   "reason": "概括出现的所有核心问题。如果有多个不同类型的警告或错误，请逐一简要列出",
   "suggestion": "清晰、可执行的代码修复建议。请针对上述由于不同原因产生的报错/警告分点作答"
 }
@@ -79,8 +80,11 @@ export async function analyzeConsoleIssues(
 
     // 尝试解析模型返回的 JSON（模型有时会带上 ```json 的包裹，清理掉）
     const cleanJsonText = resultText.replace(/```json\n|\n```|```/g, '').trim()
-    const result: DiagnosticResult = JSON.parse(cleanJsonText)
+    const result: DiagnosticResult & { fileLocation?: string | null } = JSON.parse(cleanJsonText)
 
+    if (result.fileLocation) {
+      logger.info(`报错位置: ${result.fileLocation}`)
+    }
     if (result.reason || result.suggestion) {
       logger.ai('diagnose', result.reason || 'AI 无法提取具体原因')
       logger.ai('solution', result.suggestion || '请检查常规配置。')

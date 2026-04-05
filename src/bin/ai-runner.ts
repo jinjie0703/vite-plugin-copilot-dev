@@ -107,6 +107,7 @@ child.on('close', async code => {
 
 返回格式必须为：
 {
+  "fileLocation": "指明报错发生的文件相对路径和行列号，例如 src/App.vue:10:5（如果无法确定则填 null）",
   "reason": "指出具体的报错根因（例如缺少某个库、类型未定义等）",
   "suggestion": "给出清晰的解决步骤或代码修复方案"
 }`
@@ -143,10 +144,13 @@ child.on('close', async code => {
       const cleanJsonText = resultText.replace(/```json\n|\n```|```/g, '').trim()
       const result = JSON.parse(cleanJsonText)
 
+      if (result.fileLocation) {
+        console.log(`\n${colors.cyan}📍 [位置]: ${result.fileLocation}${colors.reset}`)
+      }
       console.log(
-        `\n${colors.magenta}🧠 [原因]: ${result.reason || '无法提取具体原因'}${colors.reset}`
+        `${result.fileLocation ? '' : '\n'}${colors.magenta}🧠 [原因]: ${result.reason || '无法提取具体原因'}${colors.reset}`
       )
-      console.log(`${colors.green}💡 [建议]: ${result.suggestion || '请检查代码'}${-colors.reset}`)
+      console.log(`${colors.green}💡 [建议]: ${result.suggestion || '请检查代码'}${colors.reset}`)
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err)
       console.error(`${colors.red}获取 AI 诊断结果失败: ${errorMessage}${colors.reset}`)

@@ -13,6 +13,6 @@
     "typescript": "^5.9.3"
   },
   "bin": {
-    "vitex": "./dist/bin/ai-runner.js"
+    "vitex": "./dist/bin/ai-runner.ts"
   }
 }
