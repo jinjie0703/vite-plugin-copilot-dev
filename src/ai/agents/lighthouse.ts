@@ -2,8 +2,8 @@
 import { preview, PreviewServer } from 'vite'
 import fs from 'fs'
 import path from 'path'
-import { LighthouseOptions } from '../types'
-import { logger } from '../utils/logger'
+import { LighthouseOptions } from '../../types'
+import { logger } from '../../utils/logger'
 
 export async function runLighthouseAnalysis(options: LighthouseOptions) {
   logger.info('\\n🚀 Starting Performance & Lighthouse analysis...')

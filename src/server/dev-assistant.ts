@@ -3,7 +3,7 @@ import type { ViteDevServer } from 'vite'
 import type { CopilotDevOptions } from '../types'
 import fs from 'fs'
 import path from 'path'
-import { analyzeConsoleIssues } from './llm'
+import { analyzeConsoleIssues } from '../ai/providers/llm'
 import { desensitizePayload } from '../utils/desensitize'
 
 // Error Analysis Cache

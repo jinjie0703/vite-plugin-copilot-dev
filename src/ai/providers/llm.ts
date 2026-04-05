@@ -1,6 +1,6 @@
 // core/llm.ts
-import { LLMOptions, Locale, DiagnosticResult } from '../types'
-import { logger } from '../utils/logger'
+import { LLMOptions, Locale, DiagnosticResult } from '../../types'
+import { logger } from '../../utils/logger'
 
 /**
  * 请求大模型分析控制台收集到的构建警告或错误
