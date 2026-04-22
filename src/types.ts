@@ -1,7 +1,4 @@
 // plugins/vite-plugin-build-performance/types.ts
-declare module 'chrome-launcher' {}
-declare module 'lighthouse' {}
-
 export type Locale = 'zh-CN' | 'en-US' | string
 
 export interface LLMPromptOptions {
@@ -30,24 +27,6 @@ export interface DiagnosticResult {
   reason: string
   suggestion: string
   codeSnippet?: string
-}
-
-export interface LighthouseOptions {
-  outDir?: string
-  targetPath?: string
-  // 新增多语言和 LLM 配置
-  language?: Locale
-  llm?: LLMOptions
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onBeforeRun?: (browser: any, page: any, serverUrl: string) => Promise<void>
-  // 允许的最长加载等待时间，用于地图等重资源，单位毫秒。默认 90000 (90秒)
-  maxWaitForLoad?: number
-  thresholds?: {
-    performance?: number
-    accessibility?: number
-    'best-practices'?: number
-    seo?: number
-  }
 }
 
 export interface BrowserMonitorOptions {
@@ -95,7 +74,10 @@ export interface BrowserMonitorOptions {
   }) => typeof errorData | false | null | void
 }
 
-export interface CopilotDevOptions extends LighthouseOptions {
+export interface CopilotDevOptions {
+  /** 新增多语言和 LLM 配置 */
+  language?: Locale
+  llm?: LLMOptions
   /** 浏览器终端监控配置 */
   browserMonitor?: boolean | BrowserMonitorOptions
   /**

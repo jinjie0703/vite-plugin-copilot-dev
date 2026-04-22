@@ -1,7 +1,5 @@
 // plugins/vite-plugin-build-performance/index.ts
 import { Plugin, createLogger } from 'vite'
-// removed LighthouseOptions import
-import { runLighthouseAnalysis } from './ai/agents/lighthouse'
 import { analyzeConsoleIssues } from './ai/providers/llm'
 import { CLIENT_INJECT_CODE } from './client/client'
 import { setupBrowserMonitor } from './server/dev-assistant'
@@ -137,11 +135,6 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
         )
         await analyzeConsoleIssues(formatted, options.llm || { apiKey: '' }, options.language)
       }
-
-      if (hasBuildError) {
-        return
-      }
-      await runLighthouseAnalysis(options)
     },
   }
 }

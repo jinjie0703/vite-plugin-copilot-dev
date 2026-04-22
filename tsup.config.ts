@@ -6,5 +6,5 @@ export default defineConfig({
   dts: true,
   clean: true,
   target: 'node16',
-  external: ['vite', 'dotenv', 'puppeteer-core', 'chrome-launcher', 'lighthouse'],
+  external: ['vite', 'dotenv'],
 })
