@@ -3,6 +3,8 @@ import { spawn } from 'child_process'
 import path from 'path'
 import dotenv from 'dotenv'
 import { loadConfigFromFile, Plugin } from 'vite'
+import treeKill from 'tree-kill'
+import readline from 'readline'
 
 dotenv.config() // 加载环境变量以便读取大模型 API_KEY
 
@@ -34,6 +36,30 @@ const child = spawn(command, args, {
   env: { ...process.env, FORCE_COLOR: '1' },
 })
 
+let isExiting = false
+
+const handleExit = (signal: string) => {
+  if (isExiting) return
+  isExiting = true
+  console.log(`\n${colors.cyan}🛑 接收到 ${signal} 信号，正在优雅关闭子进程...${colors.reset}`)
+
+  if (child.pid) {
+    treeKill(child.pid, 'SIGTERM', (err) => {
+      if (err) {
+        console.error(`${colors.red}❌ 关闭子进程失败: ${err.message}${colors.reset}`)
+        process.exit(1)
+      } else {
+        process.exit(0)
+      }
+    })
+  } else {
+    process.exit(0)
+  }
+}
+
+process.on('SIGINT', () => handleExit('SIGINT'))
+process.on('SIGTERM', () => handleExit('SIGTERM'))
+
 let collectedErrorLogs = ''
 
 // 正常打印标准输出
@@ -62,10 +88,34 @@ child.stderr.on('data', data => {
 
 // 结束时触发诊断
 child.on('close', async code => {
+  if (isExiting) return // 用户主动退出，跳过诊断
+
   if (code !== 0 && collectedErrorLogs) {
     console.log(`\n${colors.cyan}--------------------------------------------------${colors.reset}`)
+    
+    // Opt-in 询问机制
+    const shouldAnalyze = await new Promise<boolean>((resolve) => {
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+      })
+      const prompt = `${colors.magenta}⚠️ 侦测到进程崩溃跑挂了。按 [Enter] 呼叫 AI 诊断，输入 [N] 退出: ${colors.reset}`
+      rl.question(prompt, (answer) => {
+        rl.close()
+        if (answer.toLowerCase() === 'n') {
+          resolve(false)
+        } else {
+          resolve(true)
+        }
+      })
+    })
+
+    if (!shouldAnalyze) {
+      process.exit(code)
+    }
+
     console.log(
-      `${colors.magenta}🧠 [AI 侦测到进程崩溃跑挂了] 正在为你诊断控制台报错...${colors.reset}`
+      `${colors.cyan}🧠 [AI Agent] 正在为你诊断控制台报错...${colors.reset}`
     )
 
     // 首先尝试从 vite 配置文件中读取配置
@@ -103,14 +153,17 @@ child.on('close', async code => {
     const systemPrompt =
       customPrompt ||
       `你是一个资深的前端构建与 TypeScript 专家。
-用户的进程崩溃了。请分析下面来自终端流中截获的报错信息。并只以 JSON 格式返回你的诊断。
+用户的进程崩溃了。请分析下面来自终端流中截获的报错信息。
+请你以清晰的 Markdown 格式输出你的诊断（不要使用 JSON），结构要求如下：
 
-返回格式必须为：
-{
-  "fileLocation": "指明报错发生的文件相对路径和行列号，例如 src/App.vue:10:5（如果无法确定则填 null）",
-  "reason": "指出具体的报错根因（例如缺少某个库、类型未定义等）",
-  "suggestion": "给出清晰的解决步骤或代码修复方案"
-}`
+### 📍 报错位置
+（指明报错发生的文件相对路径和行列号，例如 src/App.vue:10:5。如果无法确定则不写）
+
+### 🧠 原因分析
+（指出具体的报错根因，例如缺少某个库、类型未定义等）
+
+### 💡 修复建议
+（给出清晰的解决步骤或代码修复方案）`
 
     try {
       // 动态使用原生的 fetch（Node 18+ 原生支持）
@@ -123,6 +176,7 @@ child.on('close', async code => {
         body: JSON.stringify({
           model: aiModel,
           temperature: 0.1,
+          stream: true, // 开启流式输出
           messages: [
             {
               role: 'system',
@@ -137,20 +191,40 @@ child.on('close', async code => {
       })
 
       if (!response.ok) throw new Error(`请求失败: ${response.status}`)
+      if (!response.body) throw new Error('流读取失败，response.body 为空')
 
-      const data = await response.json()
-      const resultText = data.choices?.[0]?.message?.content || '{}'
+      console.log(`\n${colors.cyan}📍 [AI 实时诊断开始]${colors.reset}\n`)
 
-      const cleanJsonText = resultText.replace(/```json\n|\n```|```/g, '').trim()
-      const result = JSON.parse(cleanJsonText)
+      // 解析 SSE 流
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
 
-      if (result.fileLocation) {
-        console.log(`\n${colors.cyan}📍 [位置]: ${result.fileLocation}${colors.reset}`)
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // 最后一项可能是不完整的，留到下一个 chunk
+
+        for (const line of lines) {
+          const trimmedLine = line.trim()
+          if (trimmedLine.startsWith('data: ') && trimmedLine !== 'data: [DONE]') {
+            try {
+              const data = JSON.parse(trimmedLine.substring(6))
+              const content = data.choices?.[0]?.delta?.content || ''
+              if (content) {
+                process.stdout.write(content)
+              }
+            } catch (e) {
+              // 忽略解析错误，部分大模型非标输出
+            }
+          }
+        }
       }
-      console.log(
-        `${result.fileLocation ? '' : '\n'}${colors.magenta}🧠 [原因]: ${result.reason || '无法提取具体原因'}${colors.reset}`
-      )
-      console.log(`${colors.green}💡 [建议]: ${result.suggestion || '请检查代码'}${colors.reset}`)
+      
+      console.log('\n') // 换行结束
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err)
       console.error(`${colors.red}获取 AI 诊断结果失败: ${errorMessage}${colors.reset}`)

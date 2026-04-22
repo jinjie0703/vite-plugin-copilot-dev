@@ -9,10 +9,15 @@
     "dev": "tsup --watch"
   },
   "devDependencies": {
+    "@types/source-map": "^0.5.2",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   },
   "bin": {
     "vitex": "./dist/bin/ai-runner.ts"
+  },
+  "dependencies": {
+    "source-map": "^0.7.6",
+    "tree-kill": "^1.2.2"
   }
 }
