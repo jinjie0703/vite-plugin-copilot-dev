@@ -75,29 +75,30 @@ export default defineConfig({
 您可以配置任意兼容 OpenAI 接口格式的提供商（如阿里百炼 / DeepSeek 等），甚至**可以完全自定义输入给 AI 模型的 Prompt**。如果没有在此处配置 `apiKey`，插件会尝试去项目根目录的 `.env` 中读取 `MODELSCOPE_API_KEY`。
 
 ```typescript
-command === 'build' &&
-  buildPerformancePlugin({
-    outDir: 'dist',
-    language: 'zh-CN',
-    llm: {
-      apiKey: process.env.MODELSCOPE_API_KEY || 'ms-your-api-key', // 设置你的 ApiKey
-      baseURL: 'https://api-inference.modelscope.cn/v1', // 兼容 OpenAI 的聚合大模型接口
-      model: 'Qwen/Qwen3-Next-80B-A3B-Instruct', // 选择适合的模型
+import copilotDevPlugin from 'vite-plugin-copilot-dev'
 
-      // 【可选】自定义 AI 的指导提示词 (Prompts)
-      prompts: {
-        // 针对 Vite 构建过程中抛出的大 Chunk 警告或 rollup 报错，让 AI 返回解答：
-        buildIssues: `你是一个严格的性能架构师。
+// 在 plugins 数组中加入：
+copilotDevPlugin({
+  language: 'zh-CN',
+  llm: {
+    apiKey: process.env.MODELSCOPE_API_KEY || 'ms-your-api-key', // 设置你的 ApiKey
+    baseURL: 'https://api-inference.modelscope.cn/v1', // 兼容 OpenAI 的聚合大模型接口
+    model: 'Qwen/Qwen3-Next-80B-A3B-Instruct', // 选择适合的模型
+
+    // 【可选】自定义 AI 的指导提示词 (Prompts)
+    prompts: {
+      // 针对 Vite 构建过程中抛出的大 Chunk 警告或 rollup 报错，让 AI 返回解答：
+      buildIssues: `你是一个严格的性能架构师。
 这是 Vite 的打包警告日志。请务必只返回 JSON 格式: 
 { "reason": "概括问题", "suggestion": "代码修改建议或配置指导" }`,
 
-        // 针对终端进程崩溃（如 TS 类型检查挂了、缺少 npm 包）的报错，让 AI 返回解答：
-        crashDiagnostics: `你是高级 TypeScript 专家。
+      // 针对终端进程崩溃（如 TS 类型检查挂了、缺少 npm 包）的报错，让 AI 返回解答：
+      crashDiagnostics: `你是高级 TypeScript 专家。
 用户的进程崩溃了。请分析以下报错并告诉我修复手段。记得必须返回 JSON 格式：
 { "reason": "根本原因说明", "suggestion": "解决思路，如补充声明" }`,
-      },
     },
-  })
+  },
+})
 ```
 
 ## ⚠️ 注意事项

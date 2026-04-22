@@ -1,23 +1,42 @@
 {
   "name": "vite-plugin-copilot-dev",
   "version": "1.0.0",
+  "description": "An AI-powered development assistant and Copilot for Vite projects.",
+  "author": "Your Name",
+  "license": "MIT",
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "ai",
+    "copilot",
+    "llm",
+    "debug"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
+  "bin": {
+    "vitex": "./dist/bin/ai-runner.js"
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch"
   },
-  "devDependencies": {
-    "@types/source-map": "^0.5.2",
-    "tsup": "^8.5.1",
-    "typescript": "^5.9.3"
-  },
-  "bin": {
-    "vitex": "./dist/bin/ai-runner.ts"
-  },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "source-map": "^0.7.6",
     "tree-kill": "^1.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/source-map": "^0.5.2",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.9"
   }
 }
