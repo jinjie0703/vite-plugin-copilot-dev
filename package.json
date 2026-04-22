@@ -2,7 +2,7 @@
   "name": "vite-plugin-copilot-dev",
   "version": "1.0.0",
   "description": "An AI-powered development assistant and Copilot for Vite projects.",
-  "author": "Your Name",
+  "author": "jinjie0703 <2594817591@qq.com>",
   "license": "MIT",
   "keywords": [
     "vite",
@@ -15,17 +15,31 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "files": [
-    "dist",
-    "README.md",
-    "package.json"
+    "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jinjie0703/vite-plugin-copilot-dev.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "bin": {
     "vitex": "./dist/bin/ai-runner.js"
   },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch"
+  },
+  "peerDependencies": {
+    "vite": "^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
