@@ -1,8 +1,10 @@
 // core/llm.ts
-import { LLMOptions, Locale, DiagnosticResult } from '../../types'
+import { LLMOptions, Locale } from '../../types'
 import { logger } from '../../utils/logger'
 import fs from 'fs'
 import readline from 'readline'
+import { RAGSystem } from '../rag'
+import { getDiagnosePrompt } from '../prompts'
 
 /**
  * 请求大模型分析控制台收集到的构建警告或错误
@@ -10,7 +12,8 @@ import readline from 'readline'
 export async function analyzeConsoleIssues(
   issues: string[],
   options: LLMOptions,
-  language: Locale = 'zh-CN'
+  language: Locale = 'zh-CN',
+  rag?: RAGSystem | null
 ) {
   if (!options.apiKey || issues.length === 0) {
     return
@@ -22,32 +25,8 @@ export async function analyzeConsoleIssues(
   const baseURL = options.baseURL || 'https://api.openai.com/v1'
   const model = options.model || 'gpt-4o' // 默认值
 
-  // 构造系统提示词，强制要求它返回 JSON 格式，方便我们结构化提取
-  const defaultSystemPrompt = `你是一个资深的前端构建专家（精通 Vite, Rollup, TypeScript, Vue/React）。
-下面是用户 Vite 项目在打包或运行时产生的【控制台日志信息（包含警告或错误）】，以及可能的【代码上下文片段】。
-请你分析这些信息，并以结构化的 Markdown 格式输出你的诊断结果和修复补丁（不要使用 JSON）。
-
-结构要求如下：
-### 🧠 问题概括
-（概括出现的所有核心问题。如果有多个不同类型的警告或错误，请逐一简要列出）
-
-### 💡 修复建议
-（清晰、可执行的代码修复建议。请针对上述由于不同原因产生的报错/警告分点作答）
-
-### 🔧 修复补丁
-如果你非常确定可以直接通过修改代码来修复问题，请务必按照以下严格格式提供精确的代码替换块：
-
-📁 文件路径: [填入绝对路径，必须从用户提供的上下文中提取]
-\`\`\`replace
-<<<< SEARCH
-[这里严格复制需要被替换的原文件中的多行代码片段，请保留完全一致的空格、缩进和换行。为了保证唯一性，请至少包含目标行上下各2行的上下文！]
-====
-[这里填写修改后的正确代码]
->>>>
-\`\`\`
-如果不确定修复代码或不知道绝对路径，请不要输出修复补丁。
-
-请使用 ${language === 'zh-CN' ? '中文' : 'English'} 回复。`
+  // 构造系统提示词
+  const defaultSystemPrompt = getDiagnosePrompt(language)
 
   const systemPrompt = options.prompts?.buildIssues || defaultSystemPrompt
 
@@ -68,6 +47,15 @@ export async function analyzeConsoleIssues(
     // 保底阶段限制最大长度防止 Token 超限
     combinedIssuesText = combinedIssuesText.substring(0, 4000)
 
+    // RAG 检索
+    let ragContext = ''
+    if (rag && issues.length > 0) {
+      // 使用第一条或最后一条核心错误消息进行检索
+      const query = issues[issues.length - 1].substring(0, 500)
+      const results = await rag.retriever.retrieve(query)
+      ragContext = rag.retriever.formatResultsForPrompt(results)
+    }
+
     const response = await fetch(`${baseURL.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -79,7 +67,7 @@ export async function analyzeConsoleIssues(
         temperature: 0.1, // 降低 temperature 保证输出结构的稳定性
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: combinedIssuesText }, // 传入组装好的控制台日志
+          { role: 'user', content: combinedIssuesText + (ragContext ? `\n\n${ragContext}` : '') }, // 传入日志和 RAG 上下文
         ],
         stream: true, // 开启流式输出
       }),

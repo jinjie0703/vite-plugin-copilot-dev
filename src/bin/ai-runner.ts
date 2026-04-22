@@ -5,6 +5,7 @@ import dotenv from 'dotenv'
 import { loadConfigFromFile, Plugin } from 'vite'
 import treeKill from 'tree-kill'
 import readline from 'readline'
+import { getCrashPrompt } from '../ai/prompts'
 
 dotenv.config() // 加载环境变量以便读取大模型 API_KEY
 
@@ -150,20 +151,7 @@ child.on('close', async code => {
     const customPrompt = llmConfig?.prompts?.crashDiagnostics
     const fetchUrl = baseURL.endsWith('/chat/completions') ? baseURL : `${baseURL}/chat/completions`
 
-    const systemPrompt =
-      customPrompt ||
-      `你是一个资深的前端构建与 TypeScript 专家。
-用户的进程崩溃了。请分析下面来自终端流中截获的报错信息。
-请你以清晰的 Markdown 格式输出你的诊断（不要使用 JSON），结构要求如下：
-
-### 📍 报错位置
-（指明报错发生的文件相对路径和行列号，例如 src/App.vue:10:5。如果无法确定则不写）
-
-### 🧠 原因分析
-（指出具体的报错根因，例如缺少某个库、类型未定义等）
-
-### 💡 修复建议
-（给出清晰的解决步骤或代码修复方案）`
+    const systemPrompt = customPrompt || getCrashPrompt()
 
     try {
       // 动态使用原生的 fetch（Node 18+ 原生支持）

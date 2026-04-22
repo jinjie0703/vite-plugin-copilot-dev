@@ -3,22 +3,48 @@ import { Plugin, createLogger } from 'vite'
 import { analyzeConsoleIssues } from './ai/providers/llm'
 import { CLIENT_INJECT_CODE } from './client/client'
 import { setupBrowserMonitor } from './server/dev-assistant'
-import type { CopilotDevOptions } from './types'
+import { mountMcpTransport, setServer, pushBuildIssue } from './mcp'
+import { RAGSystem } from './ai/rag'
+import type { CopilotDevOptions, RAGOptions } from './types'
+import path from 'path'
 
 export default function vitePluginBuildPerformance(options: CopilotDevOptions = {}): Plugin {
   let hasBuildError = false
   const collectedIssues: { msg: string; count: number }[] = []
+  let ragSystem: RAGSystem | null = null
+
+  // 解析 MCP 配置
+  const mcpOpts = typeof options.mcp === 'object'
+    ? options.mcp
+    : options.mcp === false
+      ? { enabled: false }
+      : { enabled: true }
+  const enableMcp = mcpOpts.enabled !== false
+
+  // 解析 RAG 配置
+  const ragOpts: RAGOptions = typeof options.rag === 'object'
+    ? { enabled: true, ...options.rag }
+    : {
+        enabled: options.rag !== false,
+        indexDir: path.join(process.cwd(), '.vite/copilot/rag'),
+        chunkSize: 1000,
+        chunkOverlap: 200,
+        excludePatterns: [],
+      }
 
   function addIssue(level: 'warn' | 'error', msg: string) {
     if (options.logFilter && !options.logFilter(level, msg)) return
     const formattedMsg = (level === 'warn' ? 'WARNING: ' : 'ERROR: ') + msg
 
-    // 去重逻辑：如果该日志已经出现过，则只增加计数
     const existing = collectedIssues.find(i => i.msg === formattedMsg)
     if (existing) {
       existing.count++
     } else {
       collectedIssues.push({ msg: formattedMsg, count: 1 })
+    }
+
+    if (enableMcp) {
+      pushBuildIssue(level, formattedMsg)
     }
   }
 
@@ -30,7 +56,6 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
         : {}
 
   const enableMonitor = options.browserMonitor !== false
-
   const monitorConsoleError = browserMonitorOpts?.console?.error ?? true
   const monitorConsoleWarn = browserMonitorOpts?.console?.warn ?? false
   const monitorWindowOnerror = browserMonitorOpts?.window?.onerror ?? true
@@ -43,9 +68,10 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
 
   return {
     name: 'vite-plugin-build-performance',
-    api: { options }, // 导出 options 给外部读取
-    // Note: We remove `apply: 'build'` since we want dev features too.
-    // We'll constrain specific hooks respectively.
+    api: { 
+      options,
+      get rag() { return ragSystem }
+    },
 
     resolveId(id) {
       if (id === VIRTUAL_CLIENT_ID || id === `/${VIRTUAL_CLIENT_ID}`) {
@@ -59,10 +85,7 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
         code = code.replace(/__COPILOT_MONITOR_CONSOLE_ERROR__/g, String(monitorConsoleError))
         code = code.replace(/__COPILOT_MONITOR_CONSOLE_WARN__/g, String(monitorConsoleWarn))
         code = code.replace(/__COPILOT_MONITOR_WINDOW_ONERROR__/g, String(monitorWindowOnerror))
-        code = code.replace(
-          /__COPILOT_MONITOR_WINDOW_UNHANDLEDREJECTION__/g,
-          String(monitorUnhandledrejection)
-        )
+        code = code.replace(/__COPILOT_MONITOR_WINDOW_UNHANDLEDREJECTION__/g, String(monitorUnhandledrejection))
         code = code.replace(/__COPILOT_MONITOR_NETWORK_ERROR__/g, String(monitorNetworkError))
         code = code.replace(/__COPILOT_MONITOR_NETWORK_TIMEOUT__/g, String(monitorNetworkTimeout))
         return code
@@ -82,12 +105,31 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
     },
 
     configureServer(server) {
+      if (enableMcp) {
+        setServer(server)
+        mountMcpTransport(server, mcpOpts.basePath)
+      }
+
       if (enableMonitor) {
         setupBrowserMonitor(server, options, server.config.root)
       }
+
+      if (ragOpts.enabled && options.llm?.apiKey) {
+        ragSystem = new RAGSystem(options.llm, ragOpts)
+        ragSystem.init().then(() => {
+          if (ragSystem) {
+            ragSystem.ingestor.ingestProject(server.config.root)
+          }
+        })
+      }
     },
 
-    // 配置早期拦截：劫持并收集 Vite 的警告和报错日志 (Build hook)
+    async handleHotUpdate({ file }) {
+      if (ragSystem && file.match(/\.(ts|tsx|js|jsx|vue|md)$/)) {
+        await ragSystem.ingestor.ingestFile(file)
+      }
+    },
+
     config(userConfig, { command }) {
       if (command !== 'build') return
       const customLogger = userConfig.customLogger || createLogger()
@@ -107,33 +149,21 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
       userConfig.customLogger = customLogger
     },
 
-    // 监听构建结束：如果抛出了致死错误，立马进行 AI 请求 (Build hook)
     async buildEnd(error) {
-      // 避免 dev 模式下无限触发
       if (process.env.NODE_ENV !== 'production') return
-
       if (error) {
         hasBuildError = true
         addIssue('error', 'FATAL ERROR: ' + error.message + '\n' + (error.stack || ''))
-        // 这一步虽然依然会在 Vite 最后抛出堆栈前，但好处是能抓到 Rollup 层面无法挽回的崩溃
-        const formatted = collectedIssues.map(i =>
-          i.count > 1 ? `${i.msg} [反复出现了 ${i.count} 次]` : i.msg
-        )
-        await analyzeConsoleIssues(formatted, options.llm || { apiKey: '' }, options.language)
+        const formatted = collectedIssues.map(i => i.count > 1 ? `${i.msg} [反复出现了 ${i.count} 次]` : i.msg)
+        await analyzeConsoleIssues(formatted, options.llm || { apiKey: '' }, options.language, ragSystem)
       }
     },
 
-    // The closeBundle hook runs after Vite has finished processing the build
     async closeBundle() {
-      // 避免 dev 模式下执行审查
       if (process.env.NODE_ENV !== 'production') return
-
-      // 成功构建的话，依然可能遗留刚才拦截到的超大 Chunk 拆包警告，送给 AI 分析！
       if (!hasBuildError && collectedIssues.length > 0) {
-        const formatted = collectedIssues.map(i =>
-          i.count > 1 ? `${i.msg} [反复出现了 ${i.count} 次]` : i.msg
-        )
-        await analyzeConsoleIssues(formatted, options.llm || { apiKey: '' }, options.language)
+        const formatted = collectedIssues.map(i => i.count > 1 ? `${i.msg} [反复出现了 ${i.count} 次]` : i.msg)
+        await analyzeConsoleIssues(formatted, options.llm || { apiKey: '' }, options.language, ragSystem)
       }
     },
   }
