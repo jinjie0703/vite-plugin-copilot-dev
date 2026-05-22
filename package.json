@@ -47,6 +47,9 @@
     "dotenv": "^17.4.2",
     "fast-glob": "^3.3.3",
     "fs-extra": "^11.3.4",
+    "log-update": "^8.0.0",
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0",
     "source-map": "^0.7.6",
     "tree-kill": "^1.2.2",
     "zod": "^4.3.6"
@@ -54,6 +57,7 @@
   "devDependencies": {
     "@types/dotenv": "^6.1.1",
     "@types/fs-extra": "^11.0.4",
+    "@types/marked-terminal": "^6.1.1",
     "@types/node": "^25.6.0",
     "@types/source-map": "^0.5.2",
     "tsup": "^8.5.1",

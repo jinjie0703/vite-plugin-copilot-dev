@@ -5,6 +5,12 @@ import fs from 'fs'
 import readline from 'readline'
 import { RAGSystem } from '../rag'
 import { getDiagnosePrompt } from '../prompts'
+import { marked } from 'marked'
+import { markedTerminal } from 'marked-terminal'
+import logUpdate from 'log-update'
+import path from 'path'
+
+marked.use(markedTerminal() as any)
 
 /**
  * 请求大模型分析控制台收集到的构建警告或错误
@@ -104,7 +110,7 @@ export async function analyzeConsoleIssues(
             const content = data.choices?.[0]?.delta?.content || ''
             if (content) {
               fullResponseText += content
-              process.stdout.write(content)
+              logUpdate(marked.parse(fullResponseText) as string)
             }
           } catch (e) {
             // 忽略解析错误
@@ -112,6 +118,7 @@ export async function analyzeConsoleIssues(
         }
       }
     }
+    logUpdate.done()
     console.log('\n\x1b[36m----------------------------------------\x1b[0m\n')
 
     // ========== 尝试解析补丁并 Auto-Apply ==========
@@ -128,8 +135,13 @@ export async function analyzeConsoleIssues(
 
     if (patches.length > 0) {
       for (const patch of patches) {
-        if (fs.existsSync(patch.filePath)) {
-          const content = fs.readFileSync(patch.filePath, 'utf-8')
+        let resolvedPath = patch.filePath
+        if (!path.isAbsolute(resolvedPath)) {
+          resolvedPath = path.resolve(process.cwd(), resolvedPath)
+        }
+
+        if (fs.existsSync(resolvedPath)) {
+          const content = fs.readFileSync(resolvedPath, 'utf-8')
           
           // 预检防幻觉：统计文中出现了几次需要被替换的代码
           const occurrences = content.split(patch.searchContent).length - 1
@@ -155,13 +167,13 @@ export async function analyzeConsoleIssues(
 
           if (shouldApply) {
             const newContent = content.replace(patch.searchContent, patch.replaceContent)
-            fs.writeFileSync(patch.filePath, newContent, 'utf-8')
+            fs.writeFileSync(resolvedPath, newContent, 'utf-8')
             console.log(`\x1b[32m✅ 已成功修复并覆写文件！(如处于开发环境，HMR 将自动重载)\x1b[0m\n`)
           } else {
             console.log(`\x1b[33m已取消自动应用补丁。\x1b[0m\n`)
           }
         } else {
-          console.log(`\x1b[31m❌ 自动修复失败：文件路径不存在 (${patch.filePath})。\x1b[0m\n`)
+          console.log(`\x1b[31m❌ 自动修复失败：文件路径不存在 (${resolvedPath})。\x1b[0m\n`)
         }
       }
     }

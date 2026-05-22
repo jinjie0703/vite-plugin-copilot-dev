@@ -6,6 +6,11 @@ import { loadConfigFromFile, Plugin } from 'vite'
 import treeKill from 'tree-kill'
 import readline from 'readline'
 import { getCrashPrompt } from '../ai/prompts'
+import { marked } from 'marked'
+import { markedTerminal } from 'marked-terminal'
+import logUpdate from 'log-update'
+
+marked.use(markedTerminal() as any)
 
 dotenv.config() // 加载环境变量以便读取大模型 API_KEY
 
@@ -187,6 +192,7 @@ child.on('close', async code => {
       const reader = response.body.getReader()
       const decoder = new TextDecoder('utf-8')
       let buffer = ''
+      let fullResponseText = ''
 
       while (true) {
         const { done, value } = await reader.read()
@@ -203,7 +209,8 @@ child.on('close', async code => {
               const data = JSON.parse(trimmedLine.substring(6))
               const content = data.choices?.[0]?.delta?.content || ''
               if (content) {
-                process.stdout.write(content)
+                fullResponseText += content
+                logUpdate(marked.parse(fullResponseText) as string)
               }
             } catch (e) {
               // 忽略解析错误，部分大模型非标输出
@@ -212,6 +219,7 @@ child.on('close', async code => {
         }
       }
       
+      logUpdate.done()
       console.log('\n') // 换行结束
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err)
