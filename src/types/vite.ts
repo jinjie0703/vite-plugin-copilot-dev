@@ -1,8 +1,5 @@
 // Vite 生命周期交互的类型
-import type { LLMOptions, RAGOptions } from './ai'
 import type { McpServerOptions } from './mcp'
-
-export type Locale = 'zh-CN' | 'en-US' | string
 
 /** 浏览器监控配置选项 */
 export interface BrowserMonitorOptions {
@@ -30,9 +27,6 @@ export interface BrowserMonitorOptions {
 }
 
 export interface CopilotDevOptions {
-  /** 新增多语言和 LLM 配置 */
-  language?: Locale
-  llm?: LLMOptions
   /** 浏览器终端监控配置 */
   browserMonitor?: boolean | BrowserMonitorOptions
   /**
@@ -48,9 +42,4 @@ export interface CopilotDevOptions {
    * 默认启用。
    */
   mcp?: boolean | McpServerOptions
-  /**
-   * RAG (Retrieval-Augmented Generation) 配置。
-   * 用于索引项目文件，为 AI 诊断提供更精准的上下文。
-   */
-  rag?: boolean | RAGOptions
 }

@@ -6,11 +6,6 @@ export interface LLMPromptOptions {
    * 建议在 Prompt 中明确要求返回的格式（例如 JSON）。
    */
   buildIssues?: string
-  /**
-   * 用于外层 ai-runner 捕获到进程崩溃时的 Customize Prompt。
-   * 建议在 Prompt 中明确要求返回的格式（例如 JSON）。
-   */
-  crashDiagnostics?: string
 }
 
 export interface LLMOptions {
@@ -22,13 +17,6 @@ export interface LLMOptions {
   prompts?: LLMPromptOptions
 }
 
-export interface RAGOptions {
-  enabled?: boolean
-  indexDir: string
-  chunkSize: number
-  chunkOverlap: number
-  excludePatterns: string[]
-}
 
 // 定义错误诊断报告的数据结构
 export interface DiagnosticResult {

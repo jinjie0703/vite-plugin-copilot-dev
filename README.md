@@ -5,9 +5,8 @@
 ## 🌟 核心特性
 
 - **无缝集成**：只需要在 Vite 配置文件中简单引入即可开启。
-- **构建崩溃拦截**：使用内置的 `vitex` 命令包装原有的打包命令，当 `vue-tsc` 或 Vite 挂掉时，自动询问是否召唤 AI 进行上下文诊断。
-- **浏览器运行时报错监控**：开发环境自动拦截页面的 `console.error`、未捕获异常或请求失败，并在终端弹出 AI 诊断窗口。
-- **智能代码补丁**：LLM 给出修复建议后，可在终端直接按回车将修复代码打回本地源码文件。
+- **浏览器运行时报错监控**：开发环境自动拦截页面的 `console.error`、未捕获异常或请求失败，并将这些崩溃堆栈、SourceMap 和模块依赖图暴露给 MCP Server。
+- **MCP 上下文网关**：内置标准化模型上下文协议 (Model Context Protocol) 服务，支持 Cursor、Claude Desktop 等现代 AI 工具直接读取当前开发环境中的报错与状态，实现“边看报错边修 Bug”的自动化体验。
 
 ## 📦 依赖安装
 
@@ -30,81 +29,24 @@ import copilotDevPlugin from 'vite-plugin-copilot-dev'
 export default defineConfig({
   plugins: [
     copilotDevPlugin({
-      language: 'zh-CN', // AI 输出的语言，可选 'zh-CN' 或 'en-US'
-      llm: {
-        apiKey: process.env.MODELSCOPE_API_KEY || 'your-api-key',
-        baseURL: 'https://api-inference.modelscope.cn/v1',
-        model: 'Qwen/Qwen3-Next-80B-A3B-Instruct',
-      },
       // 浏览器终端监控配置
       browserMonitor: {
         console: { error: true, warn: false },
         window: { onerror: true, unhandledrejection: true },
         network: { error: false, timeout: false },
+      },
+      // MCP 服务配置
+      mcp: {
+        enabled: true
       }
     }),
   ],
 })
 ```
 
-## 🤖 进阶：如何拦截终端打包崩溃？
-
-我们在打包重型前端项目时，经常遇到 Vite 拆包警告，或 Vue-TSC 类型检查炸出一堆错。本插件自带一个增强拦截器。
-
-### 1. 替换 package.json 中的打包命令
-
-使用插件内置的命令转发器 `vitex`（内部指向 `ai-runner.js`），自动搜集标准输出和标准错误的报错：
-
-```json
-{
-  "scripts": {
-    // 之前通常是这样：
-    // "build": "run-p type-check build-only"
-
-    // 改造后，在最前面加上 vitex 即可：
-    "build": "vitex run-p type-check build-only"
-  }
-}
-```
-
-> **💡 提示**：如果你是在 Monorepo 中（未通过 npm install 而是直接放本地 `plugins/` 下使用本插件），由于并没有自动注册 bin，`vitex` 命令可能无法识别。此时你可以直接用 node 执行编译后的 runner 文件：
-> `"build": "node plugins/vite-plugin-copilot-dev/dist/bin/ai-runner.js run-p type-check build-only"`
-
-### 2. 在 vite.config.ts 增加 LLM 配置项
-
-您可以配置任意兼容 OpenAI 接口格式的提供商（如阿里百炼 / DeepSeek 等），甚至**可以完全自定义输入给 AI 模型的 Prompt**。如果没有在此处配置 `apiKey`，插件会尝试去项目根目录的 `.env` 中读取 `MODELSCOPE_API_KEY`。
-
-```typescript
-import copilotDevPlugin from 'vite-plugin-copilot-dev'
-
-// 在 plugins 数组中加入：
-copilotDevPlugin({
-  language: 'zh-CN',
-  llm: {
-    apiKey: process.env.MODELSCOPE_API_KEY || 'ms-your-api-key', // 设置你的 ApiKey
-    baseURL: 'https://api-inference.modelscope.cn/v1', // 兼容 OpenAI 的聚合大模型接口
-    model: 'Qwen/Qwen3-Next-80B-A3B-Instruct', // 选择适合的模型
-
-    // 【可选】自定义 AI 的指导提示词 (Prompts)
-    prompts: {
-      // 针对 Vite 构建过程中抛出的大 Chunk 警告或 rollup 报错，让 AI 返回解答：
-      buildIssues: `你是一个严格的性能架构师。
-这是 Vite 的打包警告日志。请务必只返回 JSON 格式: 
-{ "reason": "概括问题", "suggestion": "代码修改建议或配置指导" }`,
-
-      // 针对终端进程崩溃（如 TS 类型检查挂了、缺少 npm 包）的报错，让 AI 返回解答：
-      crashDiagnostics: `你是高级 TypeScript 专家。
-用户的进程崩溃了。请分析以下报错并告诉我修复手段。记得必须返回 JSON 格式：
-{ "reason": "根本原因说明", "suggestion": "解决思路，如补充声明" }`,
-    },
-  },
-})
-```
-
 ## ⚠️ 注意事项
 
-1. 本插件依赖终端标准输出捕获，如果在 Windows 上出现乱码，请检查终端编码。
-2. 自动打补丁功能会直接修改源文件，建议在 Git 环境下使用，以便随时回退错误修改。
+1. 本插件依赖构建缓存与网络请求拦截，确保在 `development` 模式下启用。
 
 ## 🛠 本地二次开发与构建
 

@@ -3,37 +3,7 @@ import type { ViteDevServer } from 'vite'
 import type { CopilotDevOptions } from '../types'
 import fs from 'fs'
 import path from 'path'
-import readline from 'readline'
-import { analyzeConsoleIssues } from '../ai/providers/llm'
 import { desensitizePayload } from '../utils/desensitize'
-
-let isAiMuted = false
-
-function askForAi(promptText: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (isAiMuted) {
-      resolve(false)
-      return
-    }
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    })
-    
-    rl.question(promptText, (answer) => {
-      rl.close()
-      if (answer.toLowerCase() === 'm') {
-        isAiMuted = true
-        console.log('\x1b[33m🔇 AI 助手已全局静默。若需恢复请重启开发服务器。\x1b[0m\n')
-        resolve(false)
-      } else if (answer.toLowerCase() === 'y' || answer === '') {
-        resolve(true)
-      } else {
-        resolve(false)
-      }
-    })
-  })
-}
 
 // Error Analysis Cache
 interface CacheEntry {
@@ -151,44 +121,12 @@ export function setupBrowserMonitor(
     const cached = errorCache.get(hash)
 
     if (cached && now - cached.timestamp < cacheExpirySeconds) {
-      console.log(
-        `\n\x1b[33m[Copilot Dev Assistant Cache] 重复的浏览器报错 (${type}), 提取上次的建议结果:\x1b[0m`
-      )
-      console.log(cached.result)
       return
     }
 
-    const issuesContext = [
-      `【Browser Error Type】: ${type}`,
-      `【Message】: ${msg}`,
-      `【Payload】: ${JSON.stringify(payload)}`,
-      `【Stack Trace】: \n${stack}`,
-    ]
-    if (codeContext) {
-      issuesContext.push(`【Source Code Snippet】: \n${codeContext}`)
-    }
+    console.log(`\n\x1b[33m⚠️ [Copilot-Dev] 捕获到浏览器报错: ${msg}\x1b[0m`)
+    console.log(`\x1b[34m💡 已通过 MCP 暴露诊断上下文资源，请向你的 AI IDE 提问诊断此报错。\x1b[0m\n`)
 
-    const promptText = `\n\x1b[33m⚠️ [Copilot-Dev] 捕获到浏览器报错: ${msg}\n按 [Enter] 呼叫 AI 诊断，输入 [M] 静默，其他键取消: \x1b[0m`
-    const shouldAnalyze = await askForAi(promptText)
-    if (!shouldAnalyze) {
-      return
-    }
-
-    console.log(`\n\x1b[34m[Copilot Dev Assistant] 正在分析浏览器报错...\x1b[0m`)
-
-    // Use the existing core LLM to fix/suggest
-    try {
-      // You might want to modify your `analyzeConsoleIssues` or create a generic one, this depends on it returning string or logging inside
-      // For now, assuming standard logic is inside
-      const llmOpts = options.llm || { apiKey: '' }
-      // We probably need to return result, if analyze logs we might need to change it.
-      // For now let's just trigger call
-      await analyzeConsoleIssues(issuesContext, llmOpts, options.language)
-
-      // the real analyzeConsoleIssues returns something, let's cache it (mock string if void)
-      errorCache.set(hash, { hash, result: '请见上方控制台输出', timestamp: now })
-    } catch (err) {
-      console.error('AI 分析时出现错误', err)
-    }
+    errorCache.set(hash, { hash, result: 'cached', timestamp: now })
   })
 }

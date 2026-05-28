@@ -1,17 +1,14 @@
 // plugins/vite-plugin-build-performance/index.ts
 import { Plugin, createLogger } from 'vite'
-import { analyzeConsoleIssues } from './ai/providers/llm'
 import { CLIENT_INJECT_CODE } from './client/client'
 import { setupBrowserMonitor } from './server/dev-assistant'
 import { mountMcpTransport, setServer, pushBuildIssue } from './mcp'
-import { RAGSystem } from './ai/rag'
-import type { CopilotDevOptions, RAGOptions } from './types'
+import type { CopilotDevOptions } from './types'
 import path from 'path'
 
 export default function vitePluginBuildPerformance(options: CopilotDevOptions = {}): Plugin {
   let hasBuildError = false
   const collectedIssues: { msg: string; count: number }[] = []
-  let ragSystem: RAGSystem | null = null
 
   // 解析 MCP 配置
   const mcpOpts = typeof options.mcp === 'object'
@@ -20,17 +17,6 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
       ? { enabled: false }
       : { enabled: true }
   const enableMcp = mcpOpts.enabled !== false
-
-  // 解析 RAG 配置
-  const ragOpts: RAGOptions = typeof options.rag === 'object'
-    ? { enabled: true, ...options.rag }
-    : {
-        enabled: options.rag !== false,
-        indexDir: path.join(process.cwd(), '.vite/copilot/rag'),
-        chunkSize: 1000,
-        chunkOverlap: 200,
-        excludePatterns: [],
-      }
 
   function addIssue(level: 'warn' | 'error', msg: string) {
     if (options.logFilter && !options.logFilter(level, msg)) return
@@ -69,8 +55,7 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
   return {
     name: 'vite-plugin-build-performance',
     api: { 
-      options,
-      get rag() { return ragSystem }
+      options
     },
 
     resolveId(id) {
@@ -113,21 +98,6 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
       if (enableMonitor) {
         setupBrowserMonitor(server, options, server.config.root)
       }
-
-      if (ragOpts.enabled && options.llm?.apiKey) {
-        ragSystem = new RAGSystem(options.llm, ragOpts)
-        ragSystem.init().then(() => {
-          if (ragSystem) {
-            ragSystem.ingestor.ingestProject(server.config.root)
-          }
-        })
-      }
-    },
-
-    async handleHotUpdate({ file }) {
-      if (ragSystem && file.match(/\.(ts|tsx|js|jsx|vue|md)$/)) {
-        await ragSystem.ingestor.ingestFile(file)
-      }
     },
 
     config(userConfig, { command }) {
@@ -154,17 +124,11 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
       if (error) {
         hasBuildError = true
         addIssue('error', 'FATAL ERROR: ' + error.message + '\n' + (error.stack || ''))
-        const formatted = collectedIssues.map(i => i.count > 1 ? `${i.msg} [反复出现了 ${i.count} 次]` : i.msg)
-        await analyzeConsoleIssues(formatted, options.llm || { apiKey: '' }, options.language, ragSystem)
       }
     },
 
     async closeBundle() {
-      if (process.env.NODE_ENV !== 'production') return
-      if (!hasBuildError && collectedIssues.length > 0) {
-        const formatted = collectedIssues.map(i => i.count > 1 ? `${i.msg} [反复出现了 ${i.count} 次]` : i.msg)
-        await analyzeConsoleIssues(formatted, options.llm || { apiKey: '' }, options.language, ragSystem)
-      }
+      // reserved for future use
     },
   }
 }
