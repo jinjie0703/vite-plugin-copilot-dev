@@ -1,16 +1,20 @@
 # vite-plugin-copilot-dev
 
-一个专为 Vite 项目设计的 AI 研发辅助插件 (Copilot)。它可以接管你的终端进程监控构建崩溃，自动拦截 Vite 和浏览器的报错，并通过调用大语言模型（LLM）帮你自动分析问题根因、甚至一键修改源码。
+一个专为 Vite 驱动的前端项目设计的 **AI 研发辅助探针与 MCP (Model Context Protocol) 网关**。
+
+将本插件接入你的 Vite 项目后，它能像一个隐形探针一样潜伏在浏览器的运行时中，**实时捕获 Vue/React 组件崩溃、白屏报错、未捕获异常**，并通过 Vite Dev Server 内部的 SourceMap 将这些堆栈精确还原为本地源码上下文。
+
+最重要的是，本插件原生提供了一个标准的 MCP 服务。你可以让你的 AI IDE（如 Cursor、Cline、Claude Desktop 等）直接连上这个网关，让大模型在帮你修 Bug 时拥有“看透浏览器实时报错”的上帝视角！
 
 ## 🌟 核心特性
 
-- **无缝集成**：只需要在 Vite 配置文件中简单引入即可开启。
-- **浏览器运行时报错监控**：开发环境自动拦截页面的 `console.error`、未捕获异常或请求失败，并将这些崩溃堆栈、SourceMap 和模块依赖图暴露给 MCP Server。
-- **MCP 上下文网关**：内置标准化模型上下文协议 (Model Context Protocol) 服务，支持 Cursor、Claude Desktop 等现代 AI 工具直接读取当前开发环境中的报错与状态，实现“边看报错边修 Bug”的自动化体验。
+- **极致无感**：只需在 `vite.config.ts` 中挂载，毫无入侵性。
+- **运行时报错监控**：精准拦截 `console.error`、`window.onerror`、`unhandledrejection`。
+- **SourceMap 还原**：自动将浏览器堆栈解析为绝对路径和精准报错代码行。
+- **原生 MCP 网关**：支持 SSE (Server-Sent Events) 与 Stdio 双模通讯，完美兼容当今所有主流 AI Agent/IDE。
+- **零冗余、不越权**：不含任何笨重的 RAG 或本地大模型请求包袱，把最纯粹的运行时状态输送给 IDE 的强大 AI。
 
-## 📦 依赖安装
-
-请确保将本插件安装到 `devDependencies` 中：
+## 📦 安装
 
 ```bash
 npm i -D vite-plugin-copilot-dev
@@ -18,7 +22,7 @@ npm i -D vite-plugin-copilot-dev
 pnpm i -D vite-plugin-copilot-dev
 ```
 
-## 🚀 基础使用与类型配置 (Options)
+## 🚀 基础配置 (vite.config.ts)
 
 在 `vite.config.ts` 中引入本插件，并在 `plugins` 数组中使用。
 
@@ -44,29 +48,51 @@ export default defineConfig({
 })
 ```
 
-## ⚠️ 注意事项
+运行 `npm run dev` 启动 Vite 后，MCP 网关就会自动在后台默默工作。
 
-1. 本插件依赖构建缓存与网络请求拦截，确保在 `development` 模式下启用。
+---
 
-## 🛠 本地二次开发与构建
+## 🤖 接入 AI IDE (配置 MCP)
 
-本插件全面拥抱 TypeScript，并使用 `tsup` 进行打包。如果你希望 Fork 或者在本地进行项目的二次开发：
+要想让 AI 拥有你的报错视野，你需要在你的 AI 工具中将本插件添加为 **MCP Server**。根据你使用的客户端，选择以下任意一种连接方式：
 
-1. 克隆代码并安装开发依赖（如 `tsup`、`typescript` 等）。
-2. 在插件目录下运行监听模式：
+### 方式一：SSE 直连 (推荐 Cursor、Cline 等支持 HTTP 的工具)
 
-   ```bash
-   npm run dev
-   ```
+如果你的 IDE 或 Agent 支持 `SSE (Server-Sent Events)` 连接方式，建议直接在配置中添加：
 
-3. 修改 `src/` 下的源码即可实时增量编译到 `dist/`，主项目中再次运行构建时即可立马生效。
-4. 开发完成后，如果需要发布上架或最终打包压缩，只需执行：
+- **Type / Protocol**: `SSE`
+- **Name**: `Vite-Copilot` (或者随便取)
+- **URL**: `http://127.0.0.1:5173/__vite-plugin-copilot-dev-mcp/sse`
+*(注：如果你的 Vite 服务不运行在 5173 端口，请将上述 URL 中的端口号改为你实际的端口)*
 
-   ```bash
-   npm run build
-   ```
+### 方式二：Stdio 桥接 (推荐 Claude Desktop 或纯 CLI 工具)
 
-## 📄 测试与协议 (License)
+如果你的客户端（如 Claude Desktop 或 Antigravity）**只支持通过命令行（stdio）** 启动本地 MCP 服务，本插件自带了一个轻量级桥接脚本。
+在你的 MCP 配置文件（如 `mcp_config.json` 或 `claude_desktop_config.json`）中，添加如下完整配置：
 
-本项目基于 [MIT](https://opensource.org/licenses/MIT) 协议开源。
-你可以自由使用、修改或分发本项目的原代码（无论是否商用），但请保留版权许可声明。
+```json
+{
+  "mcpServers": {
+    "vite-plugin-copilot-dev-mcp": {
+      "command": "node",
+      "args": [
+        "<你的项目绝对路径>/node_modules/vite-plugin-copilot-dev/mcp_stdio_proxy.mjs",
+        "http://127.0.0.1:5173/__vite-plugin-copilot-dev-mcp/sse"
+      ]
+    }
+  }
+}
+```
+
+*(注意：请将 `<你的项目绝对路径>` 替换为你实际的本地代码工程目录。脚本会自动在标准输入输出和 Vite 服务器的 SSE 接口之间搭建通信桥梁)*
+
+---
+
+一旦配置并连接成功，你就可以在你的 AI 聊天窗口里极其舒适地这样说：
+> *"我刚点了一下按钮页面白屏了，调用你的 MCP 看看浏览器里报了什么错，并直接帮我修改代码。"*
+
+AI 会自动读取你当前的浏览器实时报错、自动追踪引发该错误的本地代码上下文，并直接在编辑器里给出修复补丁！
+
+## 📄 协议 (License)
+
+[MIT](https://opensource.org/licenses/MIT)

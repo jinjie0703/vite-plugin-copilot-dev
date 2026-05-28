@@ -21,7 +21,7 @@ const activeSessions = new Map<string, SSEServerTransport>()
  */
 export function mountMcpTransport(
   viteServer: ViteDevServer,
-  basePath: string = '/__copilot_mcp'
+  basePath: string = '/__vite-plugin-copilot-dev-mcp'
 ) {
   const ssePath = `${basePath}/sse`
   const messagesPath = `${basePath}/messages`

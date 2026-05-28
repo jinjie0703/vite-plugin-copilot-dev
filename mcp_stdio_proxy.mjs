@@ -1,7 +1,8 @@
+#!/usr/bin/env node
 import http from 'http';
 import readline from 'readline';
 
-const SSE_URL = process.argv[2] || 'http://127.0.0.1:5173/__copilot_mcp/sse';
+const SSE_URL = process.argv[2] || 'http://127.0.0.1:5173/__vite-plugin-copilot-dev-mcp/sse';
 
 let messagesEndpoint = null;
 const messageQueue = [];
