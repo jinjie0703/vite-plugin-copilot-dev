@@ -3,7 +3,6 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { getServer } from '../context'
-import { logger } from '../../utils/logger'
 
 export function registerRestartServerTool(server: McpServer) {
   server.tool(
@@ -20,14 +19,14 @@ export function registerRestartServerTool(server: McpServer) {
       }
 
       try {
-        logger.info('MCP: Restarting Vite Dev Server...')
+        console.log('\x1b[36m%s\x1b[0m', '[Copilot-Dev] MCP: Restarting Vite Dev Server...')
         await viteServer.restart()
         return {
           content: [{ type: 'text' as const, text: '✅ Vite Dev Server restarted successfully.' }],
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        logger.error('MCP: Failed to restart Vite Dev Server', err)
+        console.error('\x1b[31m%s\x1b[0m', '[Copilot-Dev] MCP: Failed to restart Vite Dev Server', err)
         return {
           content: [{ type: 'text' as const, text: `❌ Failed to restart: ${msg}` }],
           isError: true,

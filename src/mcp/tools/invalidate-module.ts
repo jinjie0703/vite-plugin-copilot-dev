@@ -4,7 +4,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { getServer } from '../context'
-import { logger } from '../../utils/logger'
 
 export function registerInvalidateModuleTool(server: McpServer) {
   server.tool(
@@ -54,14 +53,14 @@ export function registerInvalidateModuleTool(server: McpServer) {
           viteServer.ws.send({ type: 'full-reload' })
         }
 
-        logger.info(`MCP: Invalidated module ${moduleNode.file || moduleNode.url}`)
+        console.log('\x1b[36m%s\x1b[0m', `[Copilot-Dev] MCP: Invalidated module ${moduleNode.file || moduleNode.url}`)
 
         return {
           content: [{ type: 'text' as const, text: `✅ Module \`${moduleNode.file || moduleNode.url}\` invalidated and HMR triggered.` }],
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        logger.error('MCP: Failed to invalidate module', err)
+        console.error('\x1b[31m%s\x1b[0m', '[Copilot-Dev] MCP: Failed to invalidate module', err)
         return {
           content: [{ type: 'text' as const, text: `❌ Failed to invalidate module: ${msg}` }],
           isError: true,

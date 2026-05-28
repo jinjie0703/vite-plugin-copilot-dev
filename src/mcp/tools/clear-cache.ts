@@ -3,7 +3,6 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { getServer, getRoot } from '../context'
-import { logger } from '../../utils/logger'
 import fs from 'fs'
 import path from 'path'
 
@@ -22,9 +21,9 @@ export function registerClearCacheTool(server: McpServer) {
       try {
         if (fs.existsSync(cacheDir)) {
           fs.rmSync(cacheDir, { recursive: true, force: true })
-          logger.info(`MCP: Cleared Vite cache at ${cacheDir}`)
+          console.log('\x1b[36m%s\x1b[0m', `[Copilot-Dev] MCP: Cleared Vite cache at ${cacheDir}`)
         } else {
-          logger.info('MCP: Vite cache directory does not exist, skipping.')
+          console.log('\x1b[36m%s\x1b[0m', '[Copilot-Dev] MCP: Vite cache directory does not exist, skipping.')
         }
 
         // 如果 Dev Server 在运行，重启它
@@ -40,7 +39,7 @@ export function registerClearCacheTool(server: McpServer) {
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        logger.error('MCP: Failed to clear Vite cache', err)
+        console.error('\x1b[31m%s\x1b[0m', '[Copilot-Dev] MCP: Failed to clear Vite cache', err)
         return {
           content: [{ type: 'text' as const, text: `❌ Failed to clear cache: ${msg}` }],
           isError: true,

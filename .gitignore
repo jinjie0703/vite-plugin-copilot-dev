@@ -117,3 +117,6 @@ public
 *.njsproj
 *.sln
 *.sw?
+
+# Testing
+playground/

@@ -1,12 +1,12 @@
 // plugins/vite-plugin-build-performance/index.ts
 import { Plugin, createLogger } from 'vite'
-import { CLIENT_INJECT_CODE } from './client/client'
-import { setupBrowserMonitor } from './server/dev-assistant'
+import { fileURLToPath } from 'url'
+import { setupServerMonitors } from './server'
 import { mountMcpTransport, setServer, pushBuildIssue } from './mcp'
 import type { CopilotDevOptions } from './types'
 import path from 'path'
 
-export default function vitePluginBuildPerformance(options: CopilotDevOptions = {}): Plugin {
+export default function viteCopilotPlugin(options: CopilotDevOptions = {}): any {
   let hasBuildError = false
   const collectedIssues: { msg: string; count: number }[] = []
 
@@ -52,37 +52,38 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
   const VIRTUAL_CLIENT_ID = 'virtual:copilot-dev-client'
   const RESOLVED_VIRTUAL_CLIENT_ID = '\0' + VIRTUAL_CLIENT_ID
 
-  return {
-    name: 'vite-plugin-build-performance',
+  const plugin: Plugin = {
+    name: 'vite-plugin-copilot-dev',
     api: { 
       options
     },
 
     resolveId(id) {
       if (id === VIRTUAL_CLIENT_ID || id === `/${VIRTUAL_CLIENT_ID}`) {
-        return RESOLVED_VIRTUAL_CLIENT_ID
-      }
-    },
-
-    load(id) {
-      if (id === RESOLVED_VIRTUAL_CLIENT_ID) {
-        let code = CLIENT_INJECT_CODE
-        code = code.replace(/__COPILOT_MONITOR_CONSOLE_ERROR__/g, String(monitorConsoleError))
-        code = code.replace(/__COPILOT_MONITOR_CONSOLE_WARN__/g, String(monitorConsoleWarn))
-        code = code.replace(/__COPILOT_MONITOR_WINDOW_ONERROR__/g, String(monitorWindowOnerror))
-        code = code.replace(/__COPILOT_MONITOR_WINDOW_UNHANDLEDREJECTION__/g, String(monitorUnhandledrejection))
-        code = code.replace(/__COPILOT_MONITOR_NETWORK_ERROR__/g, String(monitorNetworkError))
-        code = code.replace(/__COPILOT_MONITOR_NETWORK_TIMEOUT__/g, String(monitorNetworkTimeout))
-        return code
+        const _dirname = typeof __dirname !== 'undefined' ? __dirname : fileURLToPath(new URL('.', import.meta.url))
+        return path.resolve(_dirname, '../src/client/monitor.ts')
       }
     },
 
     transformIndexHtml() {
       if (enableMonitor && process.env.NODE_ENV !== 'production') {
+        const config = {
+          monitorConsoleError,
+          monitorConsoleWarn,
+          monitorWindowOnerror,
+          monitorUnhandledrejection,
+          monitorNetworkError,
+          monitorNetworkTimeout
+        }
         return [
           {
             tag: 'script',
-            attrs: { type: 'module', src: `/${VIRTUAL_CLIENT_ID}` },
+            children: `window.__COPILOT_CONFIG__ = ${JSON.stringify(config)};`,
+            injectTo: 'head-prepend',
+          },
+          {
+            tag: 'script',
+            attrs: { type: 'module', src: `/@id/${VIRTUAL_CLIENT_ID}` },
             injectTo: 'head-prepend',
           },
         ]
@@ -96,7 +97,7 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
       }
 
       if (enableMonitor) {
-        setupBrowserMonitor(server, options, server.config.root)
+        setupServerMonitors(server, options, server.config.root)
       }
     },
 
@@ -131,4 +132,6 @@ export default function vitePluginBuildPerformance(options: CopilotDevOptions = 
       // reserved for future use
     },
   }
+
+  return plugin as any
 }

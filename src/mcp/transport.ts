@@ -5,7 +5,6 @@
 import type { ViteDevServer } from 'vite'
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js'
 import { createMcpServer } from './server'
-import { logger } from '../utils/logger'
 
 // 活跃的 SSE 会话映射
 const activeSessions = new Map<string, SSEServerTransport>()
@@ -24,33 +23,37 @@ export function mountMcpTransport(
   viteServer: ViteDevServer,
   basePath: string = '/__copilot_mcp'
 ) {
-  const mcpServer = createMcpServer()
   const ssePath = `${basePath}/sse`
   const messagesPath = `${basePath}/messages`
 
   // 使用 Vite 的 connect 中间件（基于 node:http）
   viteServer.middlewares.use(async (req, res, next) => {
     const url = req.url || ''
+    const pathname = url.split('?')[0] // remove query params
 
-    // ==================== SSE 端点（GET） ====================
-    if (req.method === 'GET' && url === ssePath) {
-      logger.info('MCP: SSE client connected')
+    if (req.method === 'GET' && pathname === ssePath) {
+      console.log('\x1b[36m%s\x1b[0m', '[Copilot-Dev] MCP: SSE client connected')
+      const mcpServer = createMcpServer()
 
-      const transport = new SSEServerTransport(messagesPath, res)
+      const host = req.headers.host || 'localhost'
+      const protocol = req.headers['x-forwarded-proto'] || 'http'
+      const absoluteMessagesPath = `${protocol}://${host}${messagesPath}`
+
+      const transport = new SSEServerTransport(absoluteMessagesPath, res)
       const sessionId = transport.sessionId
       activeSessions.set(sessionId, transport)
 
       // 连接断开时清理
       res.on('close', () => {
         activeSessions.delete(sessionId)
-        logger.info(`MCP: SSE session ${sessionId} disconnected`)
+        console.log('\x1b[36m%s\x1b[0m', `[Copilot-Dev] MCP: SSE session ${sessionId} disconnected`)
       })
 
       // 连接 Transport 到 MCP Server
       try {
         await mcpServer.connect(transport)
       } catch (err) {
-        logger.error('MCP: Failed to connect transport', err)
+        console.error('\x1b[31m%s\x1b[0m', '[Copilot-Dev] MCP: Failed to connect transport', err)
         if (!res.writableEnded) {
           res.end()
         }
@@ -59,12 +62,15 @@ export function mountMcpTransport(
     }
 
     // ==================== Messages 端点（POST） ====================
-    if (req.method === 'POST' && url.startsWith(messagesPath)) {
+    if (req.method === 'POST' && pathname.startsWith(messagesPath)) {
       // 从 URL 中提取 sessionId（SSEServerTransport 会以 query param 形式传递）
       const parsedUrl = new URL(url, `http://${req.headers.host || 'localhost'}`)
       const sessionId = parsedUrl.searchParams.get('sessionId')
+      
+      console.log('\x1b[33m%s\x1b[0m', `[Copilot-Dev] MCP: Received POST on ${url}. Extracted sessionId: '${sessionId}'`)
 
       if (!sessionId || !activeSessions.has(sessionId)) {
+        console.error('\x1b[31m%s\x1b[0m', `[Copilot-Dev] MCP: Error 400. Session not found for ID '${sessionId}'. Active sessions: ${Array.from(activeSessions.keys()).join(', ')}`)
         res.writeHead(400, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'Invalid or expired session' }))
         return
@@ -82,7 +88,7 @@ export function mountMcpTransport(
           const message = JSON.parse(body)
           await transport.handlePostMessage(req, res, message)
         } catch (err) {
-          logger.error('MCP: Failed to handle message', err)
+          console.error('\x1b[31m%s\x1b[0m', '[Copilot-Dev] MCP: Failed to handle message', err)
           if (!res.writableEnded) {
             res.writeHead(400, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ error: 'Invalid JSON' }))
@@ -101,9 +107,9 @@ export function mountMcpTransport(
     ? viteServer.config.server.host
     : 'localhost'
 
-  logger.success(`MCP Server listening at http://${host}:${port}${ssePath}`)
-  logger.info(`  → SSE endpoint:      GET  http://${host}:${port}${ssePath}`)
-  logger.info(`  → Messages endpoint:  POST http://${host}:${port}${messagesPath}`)
+  console.log('\x1b[32m%s\x1b[0m', `[Copilot-Dev] MCP Server listening at http://${host}:${port}${ssePath}`)
+  console.log('\x1b[36m%s\x1b[0m', `[Copilot-Dev]   → SSE endpoint:      GET  http://${host}:${port}${ssePath}`)
+  console.log('\x1b[36m%s\x1b[0m', `[Copilot-Dev]   → Messages endpoint:  POST http://${host}:${port}${messagesPath}`)
 }
 
 /**
@@ -118,5 +124,5 @@ export function closeMcpTransport() {
     }
     activeSessions.delete(sessionId)
   }
-  logger.info('MCP: All SSE sessions closed.')
+  console.log('\x1b[36m%s\x1b[0m', '[Copilot-Dev] MCP: All SSE sessions closed.')
 }

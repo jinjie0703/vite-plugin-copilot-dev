@@ -24,14 +24,36 @@ export interface BrowserMonitorOptions {
     /** 是否记录网络超时，默认 false */
     timeout?: boolean
   }
+  /**
+   * 错误防抖/缓存时间（秒）。在指定时间内，如果出现完全相同的错误，只会处理一次。
+   * 默认值：120
+   */
+  cacheExpirySeconds?: number
+  /**
+   * 错误处理前的拦截器钩子
+   * 返回 false/null 可以拦截报错，返回对象可覆盖默认收集到的错误信息
+   */
+  beforeAnalyze?: (errorContext: {
+    type: string
+    msg: string
+    payload: any
+    stack: string
+    codeContext: string
+  }) => {
+    type?: string
+    msg?: string
+    payload?: any
+    stack?: string
+    codeContext?: string
+  } | false | null | void
 }
 
 export interface CopilotDevOptions {
   /** 浏览器终端监控配置 */
   browserMonitor?: boolean | BrowserMonitorOptions
   /**
-   * 自定义构建日志过滤函数，返回 false 的警告/报错将被丢弃，不会发送给 AI。
-   * 可以用来过滤掉确知的第三方库无用警告，提高信噪比并节省 Token。
+   * 自定义构建日志过滤函数，返回 false 的警告/报错将被丢弃，不会暴露给 MCP 上下文。
+   * 可以用来过滤掉确知的第三方库无用警告，提高信噪比。
    */
   logFilter?: (level: 'warn' | 'error', msg: string) => boolean
   /**
