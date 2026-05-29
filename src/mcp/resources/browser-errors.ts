@@ -35,7 +35,33 @@ export function registerBrowserErrorsResource(server: McpServer) {
         lines.push(`### [${err.type}] at ${time}`)
         lines.push(`**Message:** ${err.message}`)
         if (err.payload) {
-          lines.push(`**Payload:** ${err.payload}`)
+          if (err.type === 'network-fetch' || err.type === 'network-xhr') {
+            try {
+              const parsed = JSON.parse(err.payload)
+              lines.push(`**Request Details:**`)
+              lines.push(`- **URL:** ${parsed.request.method} ${parsed.request.url}`)
+              lines.push(`- **Headers:** \`${JSON.stringify(parsed.request.headers)}\``)
+              if (parsed.request.body) {
+                lines.push(`- **Payload:**`)
+                lines.push('```json\n' + JSON.stringify(parsed.request.body, null, 2) + '\n```')
+              }
+              lines.push(`\n**Response Details:**`)
+              lines.push(`- **Status:** HTTP ${parsed.response.status}`)
+              lines.push(`- **Headers:** \`${JSON.stringify(parsed.response.headers)}\``)
+              if (parsed.response.body !== null && parsed.response.body !== undefined) {
+                lines.push(`- **Body:**`)
+                if (typeof parsed.response.body === 'string' && !parsed.response.body.startsWith('{') && !parsed.response.body.startsWith('[')) {
+                  lines.push('```\n' + parsed.response.body + '\n```')
+                } else {
+                  lines.push('```json\n' + JSON.stringify(parsed.response.body, null, 2) + '\n```')
+                }
+              }
+            } catch (e) {
+              lines.push(`**Payload:** ${err.payload}`)
+            }
+          } else {
+            lines.push(`**Payload:** ${err.payload}`)
+          }
         }
         if (err.stack) {
           lines.push('**Stack Trace:**')
