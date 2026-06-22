@@ -1,6 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import type { ViteDevServer } from 'vite'
+import { parse } from 'stacktrace-parser'
+import { codeFrameColumns } from '@babel/code-frame'
 
 export async function resolveErrorCodeContext(
   server: ViteDevServer,
@@ -10,13 +12,13 @@ export async function resolveErrorCodeContext(
   let codeContext = ''
   if (!stack || typeof stack !== 'string') return codeContext
 
-  const fileMatch =
-    stack.match(/at\s+.*?\((.*?):(\d+):(\d+)\)/) || stack.match(/at\s+(.*?):(\d+):(\d+)/)
+  const frames = parse(stack)
+  if (!frames || frames.length === 0) return codeContext
 
-  if (!fileMatch) return codeContext
+  const frame = frames.find(f => f.file && !f.file.includes('node_modules')) || frames[0]
+  if (!frame || !frame.file) return codeContext
 
-  const [, filepath, lineStr, colStr] = fileMatch
-  let rawUrl = filepath
+  let rawUrl = frame.file
   if (rawUrl.startsWith('http')) {
     try {
       rawUrl = new URL(rawUrl).pathname + new URL(rawUrl).search
@@ -24,8 +26,8 @@ export async function resolveErrorCodeContext(
   }
   
   const cleanUrl = rawUrl.split('?')[0]
-  let targetLine = parseInt(lineStr, 10)
-  let targetCol = parseInt(colStr, 10)
+  let targetLine = frame.lineNumber || 1
+  let targetCol = frame.column || 1
 
   let absPath = path.resolve(root, cleanUrl.replace(/^[\\/]/, ''))
 
@@ -59,19 +61,17 @@ export async function resolveErrorCodeContext(
 
   if (fs.existsSync(absPath)) {
     try {
-      const lines = fs.readFileSync(absPath, 'utf8').split('\n')
-      const start = Math.max(0, targetLine - 10)
-      const end = Math.min(lines.length, targetLine + 10)
-      
-      // 给报错行加上明显的标记
-      codeContext = lines.slice(start, end).map((l, i) => {
-        const currentLineNum = start + i + 1
-        const prefix = currentLineNum === targetLine ? '  > ' : '    '
-        return `${prefix}${currentLineNum} | ${l}`
-      }).join('\n')
+      const fileContent = fs.readFileSync(absPath, 'utf8')
+      const codeFrame = codeFrameColumns(fileContent, {
+        start: { line: targetLine, column: targetCol }
+      }, {
+        highlightCode: false,
+        linesAbove: 5,
+        linesBelow: 5
+      })
       
       // 把真实的文件路径和行号附加到上下文中
-      codeContext = `File: ${absPath}:${targetLine}\n\n${codeContext}`
+      codeContext = `File: ${absPath}:${targetLine}\n\n${codeFrame}`
     } catch {
       /* ignore */
     }
