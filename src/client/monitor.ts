@@ -11,7 +11,7 @@ if (import.meta.hot) {
   const ws = import.meta.hot
 
   // 接收服务端传过来的配置
-  const config = (window as unknown as { __COPILOT_CONFIG__?: BrowserMonitorOptions }).__COPILOT_CONFIG__ || {}
+  const config = (window as unknown as { __COPILOT_CONFIG__?: BrowserMonitorOptions }).__COPILOT_CONFIG__ || ({} as BrowserMonitorOptions)
 
   function sendError(type: string, payload: unknown, msg: string, stack: string) {
     ws.send('copilot:browser-error', { type, payload, msg, stack })

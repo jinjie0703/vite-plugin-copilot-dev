@@ -18,7 +18,7 @@ export function setupBrowserErrorHandler(
   root: string
 ) {
   const browserMonitorOpts =
-    (typeof options.browserMonitor === 'object' ? options.browserMonitor : {}) as { cacheExpirySeconds?: number }
+    (typeof options.browserMonitor === 'object' ? options.browserMonitor : {}) as import('../../types').BrowserMonitorOptions
   let cacheExpirySeconds = browserMonitorOpts.cacheExpirySeconds || 120
   cacheExpirySeconds = cacheExpirySeconds * 1000 // ms
 

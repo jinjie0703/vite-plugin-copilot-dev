@@ -10,9 +10,10 @@ export function interceptBuildErrors(
   const originalWsSend = server.ws.send;
   server.ws.send = function (
     this: ViteDevServer['ws'],
-    ...args: Parameters<ViteDevServer['ws']['send']>
+    payloadOrEvent: unknown,
+    maybePayload?: unknown
   ) {
-    const payload = args[0]
+    const payload = typeof payloadOrEvent === 'string' ? maybePayload : payloadOrEvent;
     
     // 强类型守卫 (Type Guard)
     if (payload && typeof payload === 'object' && 'type' in payload && payload.type === 'error' && 'err' in payload) {
@@ -28,6 +29,10 @@ export function interceptBuildErrors(
 
     // 调用原始 send，由于 Function.prototype.apply 的参数重载问题
     // 在严格模式下我们需要借助未知的 Function 强转以保证类型安全边界
-    return (originalWsSend as (...args: unknown[]) => void).apply(this, args)
-  }
+    if (typeof payloadOrEvent === 'string') {
+      return (originalWsSend as (event: string, payload?: unknown) => void).call(this, payloadOrEvent, maybePayload)
+    } else {
+      return (originalWsSend as (payload: unknown) => void).call(this, payloadOrEvent)
+    }
+  } as typeof server.ws.send;
 }

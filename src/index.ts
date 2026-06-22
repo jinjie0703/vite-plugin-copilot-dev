@@ -89,13 +89,20 @@ export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions>
      */
     transformIndexHtml() {
       if (enableMonitor && process.env.NODE_ENV !== 'production') {
-        const config = {
-          monitorConsoleError,
-          monitorConsoleWarn,
-          monitorWindowOnerror,
-          monitorUnhandledrejection,
-          monitorNetworkError,
-          monitorNetworkTimeout
+        const config: import('./types').BrowserMonitorOptions = {
+          console: {
+            error: monitorConsoleError,
+            warn: monitorConsoleWarn,
+          },
+          window: {
+            onerror: monitorWindowOnerror,
+            unhandledrejection: monitorUnhandledrejection,
+          },
+          network: {
+            error: monitorNetworkError,
+            timeout: monitorNetworkTimeout,
+          },
+          cacheExpirySeconds: browserMonitorOpts.cacheExpirySeconds ?? 120,
         }
         return [
           // 注入全局配置对象
