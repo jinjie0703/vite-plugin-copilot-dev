@@ -6,11 +6,13 @@ import { z } from 'zod'
 import { getBuildErrors, getBuildWarnings, getServer } from '../context'
 
 export function registerDiagnoseBuildPrompt(server: McpServer) {
-  server.prompt(
+  server.registerPrompt(
     'diagnose_build_error',
-    'Diagnose current Vite build errors and warnings. Automatically collects all build issues, resolved Vite config, and plugin list into a structured diagnostic prompt for the LLM.',
     {
-      language: z.enum(['zh-CN', 'en-US']).default('zh-CN').describe('Response language preference'),
+      description: 'Diagnose current Vite build errors and warnings. Automatically collects all build issues, resolved Vite config, and plugin list into a structured diagnostic prompt for the LLM.',
+      argsSchema: {
+        language: z.enum(['zh-CN', 'en-US']).default('zh-CN').describe('Response language preference'),
+      }
     },
     ({ language }) => {
       const errors = getBuildErrors()

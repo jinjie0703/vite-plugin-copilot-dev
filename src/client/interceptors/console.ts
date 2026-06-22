@@ -1,15 +1,15 @@
-import { safeStringify } from '../utils'
+import { safeStringify, createInterceptor } from '../utils'
+import type { BrowserMonitorOptions } from '../../types'
 
 type SendErrorFn = (type: string, payload: any, msg: string, stack: string) => void
 
-export function setupConsoleInterceptor(config: any, sendError: SendErrorFn) {
+/**
+ * 设置控制台相关的监控拦截器 (console.error, console.warn)
+ */
+export function setupConsoleInterceptor(config: BrowserMonitorOptions, sendError: SendErrorFn) {
   // Intercept console.error if enabled
-  if (config.monitorConsoleError) {
-    const originalConsoleError = console.error
-    let isSending = false
-    console.error = function (...args: any[]) {
-      if (isSending) return originalConsoleError.apply(console, args)
-      isSending = true
+  if (config.console?.error) {
+    console.error = createInterceptor(console.error, (...args: any[]) => {
       try {
         const errorStr = args
           .map((arg) => (typeof arg === 'object' ? safeStringify(arg) : String(arg)))
@@ -18,20 +18,13 @@ export function setupConsoleInterceptor(config: any, sendError: SendErrorFn) {
         sendError('console.error', errorStr, 'Console Error', stack)
       } catch (e) {
         sendError('console.error', 'Stringify error', 'Console Error', '')
-      } finally {
-        isSending = false
-        originalConsoleError.apply(console, args)
       }
-    }
+    })
   }
 
   // Intercept console.warn if enabled
-  if (config.monitorConsoleWarn) {
-    const originalConsoleWarn = console.warn
-    let isSending = false
-    console.warn = function (...args: any[]) {
-      if (isSending) return originalConsoleWarn.apply(console, args)
-      isSending = true
+  if (config.console?.warn) {
+    console.warn = createInterceptor(console.warn, (...args: any[]) => {
       try {
         const warnStr = args
           .map((arg) => (typeof arg === 'object' ? safeStringify(arg) : String(arg)))
@@ -40,10 +33,7 @@ export function setupConsoleInterceptor(config: any, sendError: SendErrorFn) {
         sendError('console.warn', warnStr, 'Console Warning', stack)
       } catch (e) {
         sendError('console.warn', 'Stringify error', 'Console Warning', '')
-      } finally {
-        isSending = false
-        originalConsoleWarn.apply(console, args)
       }
-    }
+    })
   }
 }

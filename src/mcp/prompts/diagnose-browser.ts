@@ -6,11 +6,13 @@ import { z } from 'zod'
 import { getBrowserErrors } from '../context'
 
 export function registerDiagnoseBrowserPrompt(server: McpServer) {
-  server.prompt(
+  server.registerPrompt(
     'diagnose_browser_crash',
-    'Diagnose browser runtime errors. Automatically collects all intercepted browser errors (console.error, window.onerror, unhandled rejections, network errors) with source-mapped stack traces and code context.',
     {
-      language: z.enum(['zh-CN', 'en-US']).default('zh-CN').describe('Response language preference'),
+      description: 'Diagnose browser runtime errors. Automatically collects all intercepted browser errors (console.error, window.onerror, unhandled rejections, network errors) with source-mapped stack traces and code context.',
+      argsSchema: {
+        language: z.enum(['zh-CN', 'en-US']).default('zh-CN').describe('Response language preference'),
+      }
     },
     ({ language }) => {
       const errors = getBrowserErrors()

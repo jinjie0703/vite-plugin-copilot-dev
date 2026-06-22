@@ -54,9 +54,11 @@ function parseXHRHeaders(headerStr: string): Record<string, string> {
   return headers;
 }
 
-export function setupNetworkInterceptor(config: any, sendError: SendErrorFn) {
+import type { BrowserMonitorOptions } from '../../types'
+
+export function setupNetworkInterceptor(config: BrowserMonitorOptions, sendError: SendErrorFn) {
   // Monitor network errors (Fetch)
-  if (config.monitorNetworkError) {
+  if (config.network?.error) {
     const originalFetch = window.fetch
     window.fetch = async function (...args: any[]) {
       const requestArg = args[0];
@@ -185,7 +187,7 @@ export function setupNetworkInterceptor(config: any, sendError: SendErrorFn) {
         )
       })
       this.addEventListener('timeout', function () {
-        if (config.monitorNetworkTimeout) {
+        if (config.network?.timeout) {
           sendError(
             'network-xhr-timeout',
             `URL: ${reqUrl}`,

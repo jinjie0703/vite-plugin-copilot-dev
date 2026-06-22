@@ -5,12 +5,14 @@ import { setupConsoleInterceptor } from './interceptors/console'
 import { setupWindowInterceptor } from './interceptors/window'
 import { setupNetworkInterceptor } from './interceptors/network'
 
+import type { BrowserMonitorOptions } from '../types'
+
 if (import.meta.hot) {
   const ws = import.meta.hot
 
   // 接收服务端传过来的配置
   // @ts-ignore
-  const config = window.__COPILOT_CONFIG__ || {}
+  const config: BrowserMonitorOptions = window.__COPILOT_CONFIG__ || {}
 
   function sendError(type: string, payload: any, msg: string, stack: string) {
     ws.send('copilot:browser-error', { type, payload, msg, stack })

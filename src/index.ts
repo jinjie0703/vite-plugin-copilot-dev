@@ -6,6 +6,8 @@ import { mountMcpTransport, setServer, pushBuildIssue, closeMcpTransport, clearS
 import type { CopilotDevOptions } from './types'
 import path from 'path'
 
+import { CopilotDevOptionsSchema } from './types/schema'
+
 /**
  * Vite Copilot Plugin 核心入口点
  * 
@@ -14,21 +16,20 @@ import path from 'path'
  * 2. 启动 MCP (Model Context Protocol) Server，打通大模型(IDE)与 Vite 运行时的通信。
  * 3. 在构建模式下，拦截构建错误并将其暴露给 MCP。
  * 
- * @param options - 插件配置项 (CopilotDevOptions)
+ * @param rawOptions - 插件原始配置项 (CopilotDevOptions)
  */
-export default function viteCopilotPlugin(options: CopilotDevOptions = {}): PluginOption {
+export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions> = {}): PluginOption {
+  // 1. 严格解析并校验配置项 (Zod Runtime Validation)
+  // 过滤掉无效参数，并自动填充默认值
+  const options = CopilotDevOptionsSchema.parse(rawOptions) as CopilotDevOptions;
+
   // 记录构建是否出错的标识
   let hasBuildError = false
   // 缓存收集到的构建期 issue，防止重复上报
   const collectedIssues: { msg: string; count: number }[] = []
 
-  // 1. 解析 MCP (Model Context Protocol) 配置项
-  // 如果未显式关闭，则默认开启 MCP Server
-  const mcpOpts = typeof options.mcp === 'object'
-    ? options.mcp
-    : options.mcp === false
-      ? { enabled: false }
-      : { enabled: true }
+  // MCP 配置解析
+  const mcpOpts = typeof options.mcp === 'object' ? options.mcp : { enabled: true, basePath: undefined }
   const enableMcp = mcpOpts.enabled !== false
 
   /**
@@ -53,22 +54,16 @@ export default function viteCopilotPlugin(options: CopilotDevOptions = {}): Plug
     }
   }
 
-  // 2. 解析浏览器探针配置项
-  // 决定要在客户端注入哪些监控能力（比如是否劫持 console.error）
-  const browserMonitorOpts =
-    typeof options.browserMonitor === 'object'
-      ? options.browserMonitor
-      : options.browserMonitor === false
-        ? undefined
-        : {}
-
+  // 浏览器监控探针配置解析
+  const browserMonitorOpts = typeof options.browserMonitor === 'object' ? options.browserMonitor : ({} as any)
   const enableMonitor = options.browserMonitor !== false
-  const monitorConsoleError = browserMonitorOpts?.console?.error ?? true
-  const monitorConsoleWarn = browserMonitorOpts?.console?.warn ?? false
-  const monitorWindowOnerror = browserMonitorOpts?.window?.onerror ?? true
-  const monitorUnhandledrejection = browserMonitorOpts?.window?.unhandledrejection ?? true
-  const monitorNetworkError = browserMonitorOpts?.network?.error ?? false
-  const monitorNetworkTimeout = browserMonitorOpts?.network?.timeout ?? false
+
+  const monitorConsoleError = browserMonitorOpts.console?.error ?? true
+  const monitorConsoleWarn = browserMonitorOpts.console?.warn ?? false
+  const monitorWindowOnerror = browserMonitorOpts.window?.onerror ?? true
+  const monitorUnhandledrejection = browserMonitorOpts.window?.unhandledrejection ?? true
+  const monitorNetworkError = browserMonitorOpts.network?.error ?? false
+  const monitorNetworkTimeout = browserMonitorOpts.network?.timeout ?? false
 
   // 虚拟模块 ID，用于在 Vite 内部欺骗打包器加载我们的客户端代码
   const VIRTUAL_CLIENT_ID = 'virtual:copilot-dev-client'
