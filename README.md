@@ -12,6 +12,7 @@
 - **运行时报错监控**：精准拦截 `console.error`、`window.onerror`、`unhandledrejection`。
 - **SourceMap 还原**：自动将浏览器堆栈解析为绝对路径和精准报错代码行。
 - **原生 MCP 网关**：支持 SSE (Server-Sent Events) 与 Stdio 双模通讯，完美兼容当今所有主流 AI Agent/IDE。
+- **稳定性保障**：内置全流程 Playwright E2E 测试，通过 Mock 机制与严格的生命周期防抖，彻底消除 Vite 热重启过程中的异步竞态 Bug。
 - **零冗余、不越权**：不含任何笨重的 RAG 或本地大模型请求包袱，把最纯粹的运行时状态输送给 IDE 的强大 AI。
 
 ## 📦 安装

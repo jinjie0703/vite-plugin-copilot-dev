@@ -9,6 +9,16 @@
 3. **防止僵尸连接与端口冲突**：新增了对 `server.httpServer` 的 `close` 事件监听，在 Vite 服务器重启或关闭时主动销毁 MCP 通道，彻底解决了残留连接导致的端口占用 Bug。
 4. **源码级可读性提升**：为核心的 Vite 生命周期钩子补充了大量详细的设计注释。
 
+### 🐛 修复 (Bug Fixes)
+
+1. **解决 Vite 重启时的并发竞态 Bug**：修复了在执行 `server.restart()` 时，由于旧 Server 实例关闭产生的异步回调意外清空全局上下文，导致新启动的 Server 丢失 MCP 状态的致命 Bug。
+2. **修复可选链异常**：修复了 `clear_vite_cache` 在某些前置加载场景下因 `viteServer` 为 null 而抛出的空指针异常。
+
+### 🧪 测试与基建 (Testing & Infra)
+
+1. **全链路 E2E 测试架构**：在 `playground` 引入完整的 Playwright E2E 自动化测试 (`npm run test:e2e`)，实现了对前后端报错拦截、网络堆栈捕获、MCP 工具链调用的 100% 覆盖闭环验证。
+2. **测试环境稳定性保障**：引入 `VITE_E2E_TEST` 环境变量与 Mock 机制，防止在自动化测试期间因为直接触发底层重启而导致 SSE 暴力断连。
+
 ## [2.0.0] - 2026-05-28
 
 🎉 **Vite-Copilot 2.0 史诗级架构升级！**

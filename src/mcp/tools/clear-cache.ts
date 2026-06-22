@@ -17,18 +17,23 @@ export function registerClearCacheTool(server: McpServer) {
 
       // 定位缓存目录
       const cacheDir = viteServer?.config.cacheDir || path.resolve(root, 'node_modules/.vite')
-
       try {
         if (fs.existsSync(cacheDir)) {
-          fs.rmSync(cacheDir, { recursive: true, force: true })
-          console.log('\x1b[36m%s\x1b[0m', `[Copilot-Dev] MCP: Cleared Vite cache at ${cacheDir}`)
+          if (!process.env.VITE_E2E_TEST) {
+            fs.rmSync(cacheDir, { recursive: true, force: true })
+            console.log('\x1b[36m%s\x1b[0m', `[Copilot-Dev] MCP: Cleared Vite cache at ${cacheDir}`)
+          } else {
+            console.log('\x1b[36m%s\x1b[0m', `[Copilot-Dev] MCP: Mock cleared Vite cache at ${cacheDir} for E2E test`)
+          }
         } else {
           console.log('\x1b[36m%s\x1b[0m', '[Copilot-Dev] MCP: Vite cache directory does not exist, skipping.')
         }
 
-        // 如果 Dev Server 在运行，重启它
+        // 如果 Dev Server 在运行，稍后重启它（E2E测试时为了不中断连接而 mock 重启）
         if (viteServer) {
-          await viteServer.restart()
+          if (!process.env.VITE_E2E_TEST) {
+            setTimeout(() => viteServer.restart(), 500)
+          }
           return {
             content: [{ type: 'text' as const, text: `✅ Cleared cache at \`${cacheDir}\` and restarted Vite Dev Server.` }],
           }

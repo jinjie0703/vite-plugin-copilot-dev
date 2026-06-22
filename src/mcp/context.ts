@@ -29,7 +29,8 @@ export function setServer(server: ViteDevServer) {
   viteContext.root = server.config.root
 }
 
-export function clearServer() {
+export function clearServer(serverToClear?: ViteDevServer) {
+  if (serverToClear && viteContext.server !== serverToClear) return
   viteContext.server = null
 }
 

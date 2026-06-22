@@ -1,5 +1,5 @@
 // src/index.ts - vite-plugin-copilot-dev
-import { Plugin, createLogger, type PluginOption } from 'vite'
+import { Plugin, createLogger } from 'vite'
 import { fileURLToPath } from 'url'
 import { setupServerMonitors } from './server'
 import { mountMcpTransport, setServer, pushBuildIssue, closeMcpTransport, clearServer } from './mcp'
@@ -18,7 +18,7 @@ import { CopilotDevOptionsSchema } from './types/schema'
  * 
  * @param rawOptions - 插件原始配置项 (CopilotDevOptions)
  */
-export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions> = {}): PluginOption {
+export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions> = {}): unknown {
   // 1. 严格解析并校验配置项 (Zod Runtime Validation)
   // 过滤掉无效参数，并自动填充默认值
   const options = CopilotDevOptionsSchema.parse(rawOptions) as CopilotDevOptions;
@@ -66,10 +66,10 @@ export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions>
   // 虚拟模块 ID，用于在 Vite 内部欺骗打包器加载我们的客户端代码
   const VIRTUAL_CLIENT_ID = 'virtual:copilot-dev-client'
 
-  const plugin: Plugin = {
+  const plugin: Plugin<{ options: unknown }> = {
     name: 'vite-plugin-copilot-dev',
     api: { 
-      options
+      options: options as unknown
     },
 
     /**
@@ -162,8 +162,8 @@ export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions>
       // 优化 2：监听服务器关闭事件，清理残留资源，防止重新编译时引发端口冲突(僵尸连接)
       server.httpServer?.on('close', () => {
         if (enableMcp) {
-          closeMcpTransport();
-          clearServer();
+          closeMcpTransport(server);
+          clearServer(server);
         }
       });
     },

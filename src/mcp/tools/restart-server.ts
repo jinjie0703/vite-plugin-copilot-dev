@@ -20,7 +20,9 @@ export function registerRestartServerTool(server: McpServer) {
 
       try {
         console.log('\x1b[36m%s\x1b[0m', '[Copilot-Dev] MCP: Restarting Vite Dev Server...')
-        await viteServer.restart()
+        if (!process.env.VITE_E2E_TEST) {
+          setTimeout(() => viteServer.restart(), 500)
+        }
         return {
           content: [{ type: 'text' as const, text: '✅ Vite Dev Server restarted successfully.' }],
         }

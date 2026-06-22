@@ -112,10 +112,14 @@ export function mountMcpTransport(
   console.log('\x1b[36m%s\x1b[0m', `[Copilot-Dev]   → Messages endpoint:  POST http://${host}:${port}${messagesPath}`)
 }
 
+import { getServer } from './context'
+
 /**
  * 关闭所有活跃的 SSE 连接
  */
-export function closeMcpTransport() {
+export function closeMcpTransport(serverToClose?: ViteDevServer) {
+  if (serverToClose && getServer() !== serverToClose) return
+  
   for (const [sessionId, transport] of activeSessions) {
     try {
       transport.close()
