@@ -1,7 +1,7 @@
-type SendErrorFn = (type: string, payload: any, msg: string, stack: string) => void
+type SendErrorFn = (type: string, payload: unknown, msg: string, stack: string) => void
 
 // Helper to safely parse body as JSON or return as string/type info
-function parseBody(body: any): any {
+function parseBody(body: unknown): unknown {
   if (!body) return null;
   if (typeof body === 'string') {
     try {
@@ -11,7 +11,7 @@ function parseBody(body: any): any {
     }
   }
   if (body instanceof FormData) {
-    const obj: Record<string, any> = {};
+    const obj: Record<string, unknown> = {};
     body.forEach((value, key) => {
       obj[key] = value;
     });
@@ -56,20 +56,26 @@ function parseXHRHeaders(headerStr: string): Record<string, string> {
 
 import type { BrowserMonitorOptions } from '../../types'
 
+interface TrackedXHR extends XMLHttpRequest {
+  _requestUrl?: string | URL;
+  _requestMethod?: string;
+  _requestHeaders?: Record<string, string>;
+}
+
 export function setupNetworkInterceptor(config: BrowserMonitorOptions, sendError: SendErrorFn) {
   // Monitor network errors (Fetch)
   if (config.network?.error) {
     const originalFetch = window.fetch
-    window.fetch = async function (...args: any[]) {
+    window.fetch = async function (...args: Parameters<typeof window.fetch>) {
       const requestArg = args[0];
       const requestInit = args[1];
       
-      const url = typeof requestArg === 'string' ? requestArg : requestArg?.url || 'unknown url';
-      const method = (requestInit?.method || (requestArg?.method) || 'GET').toUpperCase();
+      const url = typeof requestArg === 'string' ? requestArg : (requestArg as Request)?.url || 'unknown url';
+      const method = (requestInit?.method || ((requestArg as Request)?.method) || 'GET').toUpperCase();
       
       // Capture Request Details
       let reqHeaders: Record<string, string> = {};
-      let reqBody: any = null;
+      let reqBody: unknown = null;
       
       if (requestInit) {
         reqHeaders = parseHeaders(requestInit.headers);
@@ -79,7 +85,7 @@ export function setupNetworkInterceptor(config: BrowserMonitorOptions, sendError
       }
 
       try {
-        const response = await originalFetch.apply(this, args as any)
+        const response = await originalFetch.apply(this, args)
         if (!response.ok) {
           try {
             const resClone = response.clone()
@@ -100,7 +106,7 @@ export function setupNetworkInterceptor(config: BrowserMonitorOptions, sendError
               `Fetch Error HTTP ${response.status}`,
               `Request failed for ${url}`
             )
-          } catch (e) {
+          } catch {
             sendError(
               'network-fetch',
               JSON.stringify({ request: { url, method, headers: reqHeaders, body: reqBody }, response: { status: response.status, body: 'Cannot read response body' } }),
@@ -110,12 +116,12 @@ export function setupNetworkInterceptor(config: BrowserMonitorOptions, sendError
           }
         }
         return response
-      } catch (err: any) {
+      } catch (err: unknown) {
         sendError(
           'network-fetch-fatal',
           `URL: ${url}`,
           `Fetch Request Failed (Network/CORS)`,
-          err?.stack || err?.message || String(err)
+          err instanceof Error ? (err.stack || err.message) : String(err)
         )
         throw err // rethrow 保证业务正常流转
       }
@@ -126,37 +132,29 @@ export function setupNetworkInterceptor(config: BrowserMonitorOptions, sendError
     const originalXHROpen = XMLHttpRequest.prototype.open
     const originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader
 
-    XMLHttpRequest.prototype.open = function (method: string, url: string | URL, ...args: any[]) {
-      // @ts-ignore
+    XMLHttpRequest.prototype.open = function (this: TrackedXHR, method: string, url: string | URL, ...args: unknown[]) {
       this._requestUrl = url
-      // @ts-ignore
       this._requestMethod = method
-      // @ts-ignore
       this._requestHeaders = {}
-      // @ts-ignore
-      return originalXHROpen.apply(this, [method, url, ...args])
+      // We know open accepts (method, url, async, user, password), we cast args safely for call.
+      return originalXHROpen.apply(this, [method, url, ...(args as [boolean, string?, string?])])
     }
     
-    XMLHttpRequest.prototype.setRequestHeader = function (header: string, value: string) {
-      // @ts-ignore
+    XMLHttpRequest.prototype.setRequestHeader = function (this: TrackedXHR, header: string, value: string) {
       if (this._requestHeaders) {
-        // @ts-ignore
         this._requestHeaders[header] = value;
       }
       return originalXHRSetRequestHeader.apply(this, [header, value])
     }
 
-    XMLHttpRequest.prototype.send = function (...args: any[]) {
+    XMLHttpRequest.prototype.send = function (this: TrackedXHR, ...args: Parameters<XMLHttpRequest['send']>) {
       const body = args[0];
-      // @ts-ignore
       const reqUrl = this._requestUrl;
-      // @ts-ignore
       const reqMethod = this._requestMethod || 'GET';
-      // @ts-ignore
       const reqHeaders = this._requestHeaders || {};
       const reqBody = parseBody(body);
 
-      this.addEventListener('load', function () {
+      this.addEventListener('load', function (this: TrackedXHR) {
         if (this.status >= 400) {
           const bodyText = this.responseText || '';
           const resHeaders = parseXHRHeaders(this.getAllResponseHeaders());
@@ -174,29 +172,29 @@ export function setupNetworkInterceptor(config: BrowserMonitorOptions, sendError
             'network-xhr',
             JSON.stringify(payload),
             `XHR Error HTTP ${this.status}`,
-            `Request failed for ${reqUrl}`
+            `Request failed for ${String(reqUrl)}`
           )
         }
       })
-      this.addEventListener('error', function () {
+      this.addEventListener('error', function (this: TrackedXHR) {
         sendError(
           'network-xhr-fatal',
-          `URL: ${reqUrl}`,
+          `URL: ${String(reqUrl)}`,
           `XHR Request Failed (Network/CORS)`,
           'Network Error or Blocked by Client'
         )
       })
-      this.addEventListener('timeout', function () {
+      this.addEventListener('timeout', function (this: TrackedXHR) {
         if (config.network?.timeout) {
           sendError(
             'network-xhr-timeout',
-            `URL: ${reqUrl}`,
+            `URL: ${String(reqUrl)}`,
             `XHR Request Timeout`,
             'Timeout Exceeded'
           )
         }
       })
-      return originalXHRSend.apply(this, args as any)
+      return originalXHRSend.apply(this, args)
     }
   }
 }

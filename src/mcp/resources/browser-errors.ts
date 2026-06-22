@@ -56,8 +56,8 @@ export function registerBrowserErrorsResource(server: McpServer) {
                   lines.push('```json\n' + JSON.stringify(parsed.response.body, null, 2) + '\n```')
                 }
               }
-            } catch (e) {
-              lines.push(`**Payload:** ${err.payload}`)
+            } catch {
+              lines.push(`**Payload:** ${String(err.payload)}`)
             }
           } else {
             lines.push(`**Payload:** ${err.payload}`)

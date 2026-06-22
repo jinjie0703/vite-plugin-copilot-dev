@@ -1,6 +1,6 @@
 import type { BrowserMonitorOptions } from '../../types'
 
-type SendErrorFn = (type: string, payload: any, msg: string, stack: string) => void
+type SendErrorFn = (type: string, payload: unknown, msg: string, stack: string) => void
 
 /**
  * 设置全局窗口错误拦截器 (window.onerror, window.onunhandledrejection)

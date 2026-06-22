@@ -23,8 +23,6 @@ export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions>
   // 过滤掉无效参数，并自动填充默认值
   const options = CopilotDevOptionsSchema.parse(rawOptions) as CopilotDevOptions;
 
-  // 记录构建是否出错的标识
-  let hasBuildError = false
   // 缓存收集到的构建期 issue，防止重复上报
   const collectedIssues: { msg: string; count: number }[] = []
 
@@ -55,7 +53,7 @@ export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions>
   }
 
   // 浏览器监控探针配置解析
-  const browserMonitorOpts = typeof options.browserMonitor === 'object' ? options.browserMonitor : ({} as any)
+  const browserMonitorOpts = typeof options.browserMonitor === 'object' ? options.browserMonitor : ({} as import('./types').BrowserMonitorOptions)
   const enableMonitor = options.browserMonitor !== false
 
   const monitorConsoleError = browserMonitorOpts.console?.error ?? true
@@ -67,7 +65,6 @@ export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions>
 
   // 虚拟模块 ID，用于在 Vite 内部欺骗打包器加载我们的客户端代码
   const VIRTUAL_CLIENT_ID = 'virtual:copilot-dev-client'
-  const RESOLVED_VIRTUAL_CLIENT_ID = '\0' + VIRTUAL_CLIENT_ID
 
   const plugin: Plugin = {
     name: 'vite-plugin-copilot-dev',
@@ -136,8 +133,8 @@ export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions>
       // 优化 1：拦截开发环境下的 Vite 编译/语法错误
       // Vite 遇到编译错误时会通过 websocket 广播 type: 'error' 的负载，我们在这里拦截并同步给大模型
       const _send = server.ws.send;
-      server.ws.send = function (...args: any[]) {
-        let payload = args[0]
+      server.ws.send = function (...args: unknown[]) {
+        let payload = args[0] as Record<string, unknown> | undefined
         // 兼容 Vite ws.send 的方法重载 (event, payload)
         if (typeof args[0] === 'string') {
           payload = { type: 'custom', event: args[0], data: args[1] }
@@ -145,15 +142,14 @@ export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions>
         
         if (payload && payload.type === 'error' && payload.err) {
           if (enableMcp) {
-            const err = payload.err;
+            const err = payload.err as { id?: string; message: string; stack?: string };
             const errorMsg = (err.id ? `File: ${err.id}\n` : '') + err.message + '\n' + (err.stack || '');
             pushBuildIssue('error', `[Dev Compilation Error] ${errorMsg}`);
           }
         }
         
         // 继续执行 Vite 原有的 WebSocket 发送逻辑
-        // @ts-ignore
-        return _send.apply(server.ws, args);
+        return (_send as (...args: unknown[]) => void).apply(server.ws, args);
       };
 
       // 优化 2：监听服务器关闭事件，清理残留资源，防止重新编译时引发端口冲突(僵尸连接)
@@ -197,7 +193,6 @@ export default function viteCopilotPlugin(rawOptions: Partial<CopilotDevOptions>
     async buildEnd(error) {
       if (process.env.NODE_ENV !== 'production') return
       if (error) {
-        hasBuildError = true
         addIssue('error', 'FATAL ERROR: ' + error.message + '\n' + (error.stack || ''))
       }
     },

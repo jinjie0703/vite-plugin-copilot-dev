@@ -1,4 +1,4 @@
-export function safeStringify(value: any): string {
+export function safeStringify(value: unknown): string {
   const seen = new WeakSet()
   return JSON.stringify(value, (key, val) => {
     if (typeof val === 'object' && val !== null) {
@@ -29,11 +29,13 @@ export function safeStringify(value: any): string {
  * 创建防死循环的高阶拦截器函数
  * 自动处理 isSending 标志，防止在序列化或发送错误时再次触发原方法导致栈溢出
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createInterceptor<T extends (...args: any[]) => void>(
   originalFn: T,
   interceptorLogic: (...args: Parameters<T>) => void
 ): (...args: Parameters<T>) => void {
   let isSending = false
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return function (this: any, ...args: Parameters<T>) {
     if (isSending) return originalFn.apply(this, args)
     

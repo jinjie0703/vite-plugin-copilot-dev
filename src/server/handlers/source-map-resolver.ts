@@ -22,12 +22,14 @@ export async function resolveErrorCodeContext(
   if (rawUrl.startsWith('http')) {
     try {
       rawUrl = new URL(rawUrl).pathname + new URL(rawUrl).search
-    } catch {}
+    } catch {
+      // ignore parsing error
+    }
   }
   
   const cleanUrl = rawUrl.split('?')[0]
   let targetLine = frame.lineNumber || 1
-  let targetCol = frame.column || 1
+  const targetCol = frame.column || 1
 
   let absPath = path.resolve(root, cleanUrl.replace(/^[\\/]/, ''))
 
@@ -36,7 +38,7 @@ export async function resolveErrorCodeContext(
     const moduleNode = await server.moduleGraph.getModuleByUrl(rawUrl) || await server.moduleGraph.getModuleByUrl(cleanUrl)
     if (moduleNode?.transformResult?.map) {
       const { SourceMapConsumer } = await import('source-map')
-      const consumer = await new SourceMapConsumer(moduleNode.transformResult.map as any)
+      const consumer = await new SourceMapConsumer(moduleNode.transformResult.map as import('source-map').RawSourceMap)
       const originalPosition = consumer.originalPositionFor({
         line: targetLine,
         column: targetCol,
@@ -55,7 +57,7 @@ export async function resolveErrorCodeContext(
       }
       consumer.destroy()
     }
-  } catch (e) {
+  } catch {
     // SourceMap 解析失败，静默降级到原始行列号
   }
 

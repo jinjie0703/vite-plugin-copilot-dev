@@ -49,7 +49,7 @@ export function registerDiagnoseBuildPrompt(server: McpServer) {
         sections.push('\n## Vite Environment')
         sections.push(`- **Root**: ${config.root}`)
         sections.push(`- **Mode**: ${config.mode}`)
-        sections.push(`- **Plugins**: ${(config.plugins || []).map(p => (p as any).name).join(', ')}`)
+        sections.push(`- **Plugins**: ${(config.plugins || []).map(p => (p as { name: string }).name).join(', ')}`)
         if (config.build?.target) {
           sections.push(`- **Build Target**: ${config.build.target}`)
         }

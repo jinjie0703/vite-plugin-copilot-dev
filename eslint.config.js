@@ -10,7 +10,8 @@ export default tseslint.config(
       'node_modules/**',
       'mcp_stdio_proxy.mjs',
       'tests/**',
-      '.agents/**'
+      '.agents/**',
+      'playground/dist/**'
     ],
   },
   {

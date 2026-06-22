@@ -57,11 +57,11 @@ export function registerViteConfigResource(server: McpServer) {
           sourcemap: config.build?.sourcemap,
           cssMinify: config.build?.cssMinify,
           rollupOptions: config.build?.rollupOptions
-            ? { external: (config.build.rollupOptions as any).external }
+            ? { external: (config.build.rollupOptions as Record<string, unknown>).external }
             : undefined,
         },
         plugins: (config.plugins || []).map(p => ({
-          name: (p as any)?.name || 'unnamed',
+          name: (p as { name?: string })?.name || 'unnamed',
         })),
         css: {
           preprocessorOptions: config.css?.preprocessorOptions
